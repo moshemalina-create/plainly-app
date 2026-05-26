@@ -18,6 +18,15 @@
 <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
 <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
 <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<!-- PDF.js for in-browser PDF text extraction (keeps PDF parsing off the server clock) -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script>
+  // Configure the PDF.js worker (must match the library version above)
+  if (window.pdfjsLib) {
+    window.pdfjsLib.GlobalWorkerOptions.workerSrc =
+      "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+  }
+</script>
 </head>
 <body>
 <div id="root"></div>
@@ -2681,7 +2690,7 @@ Return ONLY a JSON object (no fences):
 // IEP EXTRACTION PROMPT — Stage A: pull structured data out of the IEP
 // ============================================================================
 
-const IEP_EXTRACT_PROMPT = `You are extracting key facts from a New York State IEP into compact JSON. Extraction only — do not analyze, evaluate, or flag. Do not infer facts not stated. If a field isn't present, use null. Keep every text value SHORT (one phrase or sentence, not paragraphs) — this needs to be fast.
+const IEP_EXTRACT_PROMPT = `You are extracting key facts from the text of a New York State IEP into compact JSON. The text was extracted from a PDF and may have imperfect line breaks or ordering — work with it as best you can. Extraction only — do not analyze, evaluate, or flag. Do not infer facts not stated. If a field isn't present, use null. Keep every text value SHORT (one phrase or sentence, not paragraphs) — this needs to be fast.
 
 OUTPUT — return ONLY a JSON object (no fences, no preamble):
 
@@ -3131,13 +3140,13 @@ async function callClaude(messages, dynamicSystem) {
 
 // Calls Claude without forcing tool use, for tasks like checklist generation
 // where we want a simple JSON response.
-async function callClaudeForJSON(systemPrompt, userMessage) {
+async function callClaudeForJSON(systemPrompt, userMessage, model = MODEL, maxTokens = 3000) {
   const response = await fetch(API_URL, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
-      model: MODEL,
-      max_tokens: 3000,
+      model: model,
+      max_tokens: maxTokens,
       system: systemPrompt,
       messages: [{ role: "user", content: userMessage }],
     }),
@@ -3195,6 +3204,43 @@ function fileToBase64(file) {
     reader.onerror = () => reject(new Error("Failed to read file"));
     reader.readAsDataURL(file);
   });
+}
+
+// Extract plain text from a PDF entirely in the browser using PDF.js. This
+// keeps the heavy PDF parsing off the server, so it doesn't count against the
+// Netlify function timeout. Returns { text, pageCount, hadTextLayer }.
+async function extractPdfText(file) {
+  if (!window.pdfjsLib) {
+    throw new Error("PDF reader didn't load. Refresh the page and try again.");
+  }
+  const arrayBuffer = await file.arrayBuffer();
+  const pdf = await window.pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+  let fullText = "";
+  let totalChars = 0;
+  const pageCount = pdf.numPages;
+
+  for (let pageNum = 1; pageNum <= pageCount; pageNum++) {
+    const page = await pdf.getPage(pageNum);
+    const content = await page.getTextContent();
+    // Reconstruct lines using item positions so the text isn't a jumble
+    let lastY = null;
+    let pageText = "";
+    for (const item of content.items) {
+      if (!item.str) continue;
+      const y = item.transform ? item.transform[5] : null;
+      if (lastY !== null && y !== null && Math.abs(y - lastY) > 2) {
+        pageText += "\n";
+      }
+      pageText += item.str + " ";
+      lastY = y;
+    }
+    fullText += "\n\n--- Page " + pageNum + " ---\n" + pageText.trim();
+    totalChars += pageText.trim().length;
+  }
+
+  // If almost no text came out, it's likely a scanned/image-only PDF
+  const hadTextLayer = totalChars > 80;
+  return { text: fullText.trim(), pageCount, hadTextLayer };
 }
 
 // Calls Claude with a PDF as a document block plus a system prompt and a text
@@ -5133,7 +5179,7 @@ function IEPSection({
           >
             <div className="iep-upload-icon">↑</div>
             <p className="iep-upload-title">Drop a PDF here, or click to browse</p>
-            <p className="iep-upload-sub">PDF only · stays on your device until processed · max 32MB</p>
+            <p className="iep-upload-sub">PDF only · read in your browser, only the text is sent for analysis · max 4MB</p>
           </div>
           <input
             ref={inputRef}
@@ -5615,20 +5661,31 @@ function ChatTool() {
           `PDF is too large (limit ${limitMB}MB). Many free online tools — Adobe Compress PDF, ilovepdf.com — will shrink it.`
         );
       }
-      const base64 = await fileToBase64(file);
 
-      // Stage A — extraction. One call to claude.js with the PDF. ~15-25s.
-      const extraction = await callClaudeWithPDF(
+      // Step 1 — extract the PDF text IN THE BROWSER with PDF.js. This is the
+      // heavy part, and it runs on the user's machine with no server time
+      // limit. The server only ever sees plain text after this.
+      const { text: pdfText, hadTextLayer } = await extractPdfText(file);
+
+      if (!hadTextLayer) {
+        throw new Error(
+          "This looks like a scanned or photographed IEP — there's no readable text in the file, just images. I can't read those automatically. The easiest path: open the IEP and type or paste the key details (services, goals, classification, placement) into the chat, and I'll work from that."
+        );
+      }
+
+      // Step 2 — extraction call. Send the TEXT (not the PDF) to Claude. Text
+      // analysis is fast, so this stays well under the function time limit.
+      const extraction = await callClaudeForJSON(
         IEP_EXTRACT_PROMPT,
-        base64,
-        "Extract this IEP into the structured schema described in the system prompt. Return ONLY the JSON object."
+        "Here is the full text extracted from a parent's IEP PDF. Extract it into the structured schema described in the system prompt. Return ONLY the JSON object.\n\nIEP TEXT:\n" +
+          pdfText,
+        FAST_MODEL
       );
       setIepExtraction(extraction);
 
       // Now flagging — show that stage in the spinner.
       setIepProcessing("flagging");
 
-      // Build parent context from existing intake + chat.
       const parentContext = {
         concerns_freetext: intake.concerns_summary || "",
         considering_private_placement: intake.private_placement_status === "considering",
@@ -5639,9 +5696,7 @@ function ChatTool() {
         triage_categories: triageResult?.identified_categories?.map((c) => c.category) || [],
       };
 
-      // Stage B — flagging. A second, separate call to claude.js (text only). ~10-20s.
-      // Splitting extraction and flagging into two requests keeps each one well
-      // under the 30s function limit.
+      // Step 3 — flagging call. Text only, fast.
       const flags = await callClaudeForJSON(
         IEP_FLAG_PROMPT,
         "Identify the most relevant facts in this IEP that could support a colorable due process claim, and pair each with a question for the parent.\n\n" +
@@ -5654,11 +5709,12 @@ function ChatTool() {
       setIepProcessing(null);
     } catch (e) {
       const msg = (e && e.message) || "unknown error";
-      // Give a more specific hint if it looks like a timeout
       const isTimeout = /timeout|timed out|504|502|gateway/i.test(msg);
       setIepError(
         isTimeout
-          ? "The IEP took too long to process — this usually means the file is very large or has many pages. Try a smaller or compressed PDF, or skip this step and just tell me about the IEP in the chat."
+          ? "The analysis took too long. Try a shorter IEP, or skip this step and just tell me about the IEP in the chat."
+          : msg.indexOf("scanned") !== -1
+          ? msg // the scanned-PDF message is already parent-friendly
           : "Couldn't process the IEP — " + msg + ". You can try again, try a different file, or skip this step."
       );
       setIepProcessing(null);
