@@ -1,0 +1,16 @@
+# Plainly — Netlify configuration
+# No build step. Static index.html + a serverless function.
+
+[build]
+  publish = "."
+    functions = "netlify/functions"
+
+    [functions]
+      node_bundler = "esbuild"
+
+      # Function endpoint passthrough
+      [[redirects]]
+        from = "/.netlify/functions/*"
+          to = "/.netlify/functions/:splat"
+            status = 200
+              force = true
