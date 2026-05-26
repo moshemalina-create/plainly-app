@@ -2174,6 +2174,10 @@ if (typeof window !== "undefined" && !window.storage) {
 // ============================================================================
 
 const MODEL = "claude-sonnet-4-6";
+// Faster, cheaper model for mechanical extraction (pulling stated facts out of
+// a PDF into JSON). Keeps the slow vision+generation call under Netlify's 26s
+// function limit. Legal-judgment steps (flagging, drafting) stay on MODEL.
+const FAST_MODEL = "claude-haiku-4-5-20251001";
 // Background function handles large PDFs, but Netlify caps request bodies at
 // 6MB; base64 inflates ~33%, so cap raw PDFs at ~4MB.
 const MAX_PDF_BYTES = 4 * 1024 * 1024;
@@ -2677,106 +2681,55 @@ Return ONLY a JSON object (no fences):
 // IEP EXTRACTION PROMPT — Stage A: pull structured data out of the IEP
 // ============================================================================
 
-const IEP_EXTRACT_PROMPT = `You are extracting structured information from a New York State Individualized Education Program (IEP). Your only job is faithful extraction. Do not analyze, evaluate, or flag anything. Do not infer facts that are not stated. If a field is not present, return null.
+const IEP_EXTRACT_PROMPT = `You are extracting key facts from a New York State IEP into compact JSON. Extraction only — do not analyze, evaluate, or flag. Do not infer facts not stated. If a field isn't present, use null. Keep every text value SHORT (one phrase or sentence, not paragraphs) — this needs to be fast.
 
-NY IEPs typically include these sections, though headings vary (especially between non-NYC districts and NYC DOE): Student Information, Present Levels of Performance, Measurable Annual Goals, Reporting Progress, Recommended Special Education Programs and Services, 12-Month Service / Extended School Year, Testing Accommodations, Coordinated Set of Transition Activities (age 15+), Participation in State and District-wide Assessments, Participation with Students Without Disabilities, Special Transportation, Placement Recommendation.
-
-OUTPUT — return ONLY a JSON object (no fences, no preamble, no commentary):
+OUTPUT — return ONLY a JSON object (no fences, no preamble):
 
 {
-  "iep_metadata": {
-    "iep_meeting_date": "YYYY-MM-DD|null",
-    "projected_implementation_date": "YYYY-MM-DD|null",
-    "projected_review_date": "YYYY-MM-DD|null",
+  "meta": {
+    "iep_meeting_date": "YYYY-MM-DD or school-year string or null",
     "district_name": "string|null",
-    "is_nyc_doe": "boolean (best guess from formatting/headers)",
-    "cse_chairperson": "string|null"
+    "is_nyc_doe": "boolean best guess"
   },
   "student": {
     "name": "string|null",
     "date_of_birth": "YYYY-MM-DD|null",
-    "current_age": "number|null",
+    "age": "number|null",
     "grade": "string|null",
-    "current_school": "string|null",
-    "disability_classification": "string|null (use NY classification term as written)",
-    "secondary_classification": "string|null"
+    "classification": "string|null (NY term as written)"
   },
-  "present_levels": {
-    "academic_summary": "string|null (verbatim or close paraphrase, trimmed for length)",
-    "social_emotional_summary": "string|null",
-    "physical_development_summary": "string|null",
-    "management_needs_summary": "string|null",
-    "evaluations_referenced": [
-      {"type": "string", "date": "YYYY-MM-DD|null", "source": "string"}
-    ]
-  },
-  "annual_goals": [
-    {
-      "domain": "academic|speech|ot|pt|counseling|behavior|adaptive|transition|other",
-      "goal_text": "string (verbatim, trimmed for length)",
-      "evaluation_method": "string|null",
-      "criteria_for_mastery": "string|null"
-    }
+  "present_levels_brief": "string|null — 1-3 sentences summarizing the child's key needs across academic/social-emotional/behavior. SHORT.",
+  "evaluations_referenced": [
+    {"type": "string", "date": "string|null"}
   ],
-  "special_education_program": {
-    "program_type": "string|null (e.g., 'Integrated Co-Teaching', 'Special Class 12:1:1', 'Resource Room', 'SETSS', 'Consultant Teacher Direct/Indirect', 'Special Class in a Specialized School', 'Nonpublic School')",
-    "program_frequency": "string|null",
-    "program_duration": "string|null",
-    "program_location": "string|null",
+  "goals": [
+    {"domain": "academic|speech|ot|pt|counseling|behavior|adaptive|transition|other", "goal_brief": "string — short paraphrase, NOT verbatim"}
+  ],
+  "program": {
+    "program_type": "string|null (e.g. 'Integrated Co-Teaching', 'Special Class 12:1:1', 'Resource Room', 'SETSS', 'Consultant Teacher')",
     "class_ratio": "string|null"
   },
   "related_services": [
-    {
-      "service": "string (speech, OT, PT, counseling, etc.)",
-      "frequency_per_week": "number|null",
-      "session_length_minutes": "number|null",
-      "group_or_individual": "individual|group|both|null",
-      "group_size": "number|null",
-      "location": "string|null",
-      "language_of_service": "string|null"
-    }
+    {"service": "string", "frequency_per_week": "number|null", "session_minutes": "number|null", "group_or_individual": "individual|group|both|null", "group_size": "number|null"}
   ],
-  "supplementary_aids_and_services": [
-    {"description": "string", "frequency": "string|null"}
-  ],
-  "program_modifications_accommodations": ["string"],
-  "testing_accommodations": ["string"],
-  "twelve_month_services": {
-    "recommended": "boolean|null",
-    "rationale": "string|null"
-  },
-  "transition": {
-    "applicable": "boolean (true if student age 15+)",
-    "post_secondary_goals": {
-      "education_training": "string|null",
-      "employment": "string|null",
-      "independent_living": "string|null"
-    },
-    "transition_activities": ["string"],
-    "courses_of_study": "string|null"
-  },
-  "lre_participation": {
-    "percent_with_nondisabled_peers": "string|null",
-    "explanation_for_removal": "string|null"
-  },
-  "placement_recommendation": {
-    "placement_type": "string|null",
-    "specific_school_or_program": "string|null"
-  },
+  "accommodations_brief": ["string — short items only"],
+  "twelve_month_services": "boolean|null (recommended?)",
+  "transition_applicable": "boolean (true if age 15+)",
+  "transition_present": "boolean|null (is there a transition plan with post-secondary goals?)",
+  "lre_note": "string|null — placement type and/or % with nondisabled peers, brief",
   "extraction_quality": {
-    "overall_completeness": "high|medium|low",
-    "sections_unclear_or_missing": ["string"],
-    "notes": "string|null (e.g., 'last page appears cut off', 'goals section was illegible')"
+    "completeness": "high|medium|low",
+    "unclear_or_missing": ["string — short list"]
   }
 }
 
 RULES
-1. Use the IEP's own language. Do NOT translate "Special Class 12:1:1" into "small class." Do NOT soften "Emotional Disability" into "emotional needs."
-2. For services like "speech 2x30 group of 3," parse into frequency_per_week=2, session_length_minutes=30, group_or_individual=group, group_size=3.
-3. If a date is given as a school year (e.g., "2024-2025"), leave it as that string in the appropriate field.
-4. If a section is unreadable or missing, list it under sections_unclear_or_missing rather than guessing.
-5. Trim very long present-levels and goal text but preserve substance.
-6. Do NOT flag anything, evaluate appropriateness, or comment. Extraction only.`;
+1. Use the IEP's own terms for program/classification. Don't soften (keep "Special Class 12:1:1", "Emotional Disability", etc.).
+2. Parse services like "speech 2x30 group of 3" into frequency_per_week=2, session_minutes=30, group_or_individual=group, group_size=3.
+3. Paraphrase goals briefly — do NOT reproduce verbatim goal text. One short line each.
+4. Keep present_levels_brief to 1-3 sentences total.
+5. If unreadable/missing, note it in unclear_or_missing rather than guessing.
+6. Extraction only. No analysis, no commentary. Be concise — short values throughout.`;
 
 // ============================================================================
 // IEP FLAGGING PROMPT — Stage B: identify facts that map to claim categories
@@ -3246,12 +3199,14 @@ function fileToBase64(file) {
 
 // Calls Claude with a PDF as a document block plus a system prompt and a text
 // instruction. Used for IEP extraction. Returns parsed JSON.
-async function callClaudeWithPDF(systemPrompt, pdfBase64, instruction, maxTokens = 4000) {
+// Defaults to FAST_MODEL (Haiku) and a tighter token budget to stay under the
+// 26s function limit; the slimmer extraction schema needs far fewer tokens.
+async function callClaudeWithPDF(systemPrompt, pdfBase64, instruction, maxTokens = 2000, model = FAST_MODEL) {
   const response = await fetch(API_URL, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
-      model: MODEL,
+      model: model,
       max_tokens: maxTokens,
       system: systemPrompt,
       messages: [
