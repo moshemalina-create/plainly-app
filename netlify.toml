@@ -1,17 +1,24 @@
 # Plainly — Netlify configuration
-# No build step. Static index.html + a serverless function.
+# Static index.html + a single serverless function (claude.js) that proxies
+# the Anthropic API. IEP analysis is two sequential calls to that same
+# function from the browser — no background functions, no Blobs.
 
 [build]
   publish = "."
-    command = "npm install"
-    functions = "netlify/functions"
+  functions = "netlify/functions"
 
-    [functions]
-      node_bundler = "esbuild"
+[functions]
+  node_bundler = "esbuild"
 
-      # Function endpoint passthrough
-      [[redirects]]
-        from = "/.netlify/functions/*"
-          to = "/.netlify/functions/:splat"
-            status = 200
-              force = true
+# Give functions the maximum synchronous timeout. The IEP extraction call
+# (PDF + vision) is the slowest single request; this headroom keeps it from
+# timing out. (Free tier max is 26s; paid plans allow more.)
+[functions."claude"]
+  timeout = 26
+
+# Function endpoint passthrough
+[[redirects]]
+  from = "/.netlify/functions/*"
+  to = "/.netlify/functions/:splat"
+  status = 200
+  force = true
