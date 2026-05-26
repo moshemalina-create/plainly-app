@@ -2791,31 +2791,31 @@ INPUT YOU WILL RECEIVE
 
 You'll receive the iep_extraction (structured data from Stage A) and parent_context (concerns_freetext, considering_private_placement, child_making_progress, services_actually_happening, has_private_evaluation, prior_iep_summary if available).
 
-OUTPUT — return ONLY a JSON object (no fences, no preamble):
+OUTPUT — return ONLY a JSON object (no fences, no preamble). Keep every string SHORT — this needs to generate fast:
 
 {
-  "summary_for_parent": "3-5 sentences, first person to parent. Acknowledge what you reviewed, name the strongest 1-3 things to look at, point them to the questions below. Warm, direct, not alarmist. Use the child's first name.",
+  "summary_for_parent": "2-4 sentences, first person to parent, using the child's first name. Name the strongest 1-2 things to look at. Warm, direct, not alarmist.",
   "flags": [
     {
       "claim_categories": ["string from the eight"],
-      "what_the_iep_shows": "string, plain language description of the fact in the IEP",
-      "why_this_might_matter": "string, parent-facing, one-two sentences",
-      "question_for_parent": "string|null (the question whose answer would tell us whether this is an actual issue; null only if the IEP alone establishes the issue, which is rare)",
-      "supporting_iep_facts": ["string (specific quotes or values from the IEP)"],
+      "what_the_iep_shows": "one short sentence",
+      "why_this_might_matter": "one short sentence",
+      "question_for_parent": "string|null — one short question, or null",
+      "supporting_iep_facts": ["1-2 short items max"],
       "priority": "high|medium|low"
     }
   ],
-  "questions_to_strengthen_any_claim": ["string (general questions that would help any future complaint, e.g., 'Do you have the most recent progress reports?', 'Have you put your concerns in writing to the district?')"],
-  "things_that_look_okay": ["string (0-3 brief items to avoid making every IEP sound entirely deficient; honest observations about elements that appear appropriate)"],
-  "extraction_gaps_affecting_review": ["string (anything in extraction_quality.sections_unclear_or_missing that limited your review)"]
+  "questions_to_strengthen_any_claim": ["2-3 short questions max"],
+  "things_that_look_okay": ["0-2 short items"],
+  "extraction_gaps_affecting_review": ["short items, only if relevant"]
 }
 
 PRIORITY GUIDANCE
-- high: facts that map cleanly to a claim category and where the parent's likely answer to the follow-up question would establish an issue. Examples: very low service amounts paired with a private eval recommending more; goals identical to last year's with no progress; transition plan missing for a 17-year-old.
-- medium: facts that could matter depending on parent answers but could also be fine. Most flags will be medium.
-- low: things worth surfacing but unlikely to drive a claim on their own.
+- high: facts that map cleanly to a claim category where the parent's likely answer would establish an issue.
+- medium: facts that could matter depending on parent answers. Most flags are medium.
+- low: worth surfacing but unlikely to drive a claim alone.
 
-Aim for 3-7 flags total. Fewer is better than more. If the IEP genuinely looks appropriate on its face, return 1-2 medium/low flags and say so honestly in the summary — the parent can still file based on facts outside the IEP (implementation, recent events, evaluation disputes).
+Aim for 3-5 flags total. Fewer is better than more. Be concise in every field — short sentences, no padding. If the IEP looks appropriate on its face, return 1-2 medium/low flags and say so honestly in the summary.
 
 VOICE
 First person where addressing the parent. Plain English. No case citations. No Latin. No formal legal headers. The parent is reading this on a phone or laptop trying to make sense of a 30-page document. Help them.
@@ -5696,14 +5696,18 @@ function ChatTool() {
         triage_categories: triageResult?.identified_categories?.map((c) => c.category) || [],
       };
 
-      // Step 3 — flagging call. Text only, fast.
+      // Step 3 — flagging call. Text only, on Haiku for speed, with a bounded
+      // token budget so the structured output stays small enough to finish
+      // under the 26s function limit.
       const flags = await callClaudeForJSON(
         IEP_FLAG_PROMPT,
         "Identify the most relevant facts in this IEP that could support a colorable due process claim, and pair each with a question for the parent.\n\n" +
           "iep_extraction:\n" +
           JSON.stringify(extraction, null, 2) +
           "\n\nparent_context:\n" +
-          JSON.stringify(parentContext, null, 2)
+          JSON.stringify(parentContext, null, 2),
+        FAST_MODEL,
+        2500
       );
       setIepFlags(flags);
       setIepProcessing(null);
