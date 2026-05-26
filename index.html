@@ -5662,7 +5662,18 @@ function ChatTool() {
       }
       const base64 = await fileToBase64(file);
 
-      // Build parent context from existing intake + chat
+      // Stage A — extraction. One call to claude.js with the PDF. ~15-25s.
+      const extraction = await callClaudeWithPDF(
+        IEP_EXTRACT_PROMPT,
+        base64,
+        "Extract this IEP into the structured schema described in the system prompt. Return ONLY the JSON object."
+      );
+      setIepExtraction(extraction);
+
+      // Now flagging — show that stage in the spinner.
+      setIepProcessing("flagging");
+
+      // Build parent context from existing intake + chat.
       const parentContext = {
         concerns_freetext: intake.concerns_summary || "",
         considering_private_placement: intake.private_placement_status === "considering",
@@ -5673,74 +5684,27 @@ function ChatTool() {
         triage_categories: triageResult?.identified_categories?.map((c) => c.category) || [],
       };
 
-      // Generate a job id and kick off the background function
-      const jobId =
-        "iep_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2, 10);
-
-      const startRes = await fetch("/.netlify/functions/analyze-iep-background", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          jobId,
-          pdfBase64: base64,
-          extractPrompt: IEP_EXTRACT_PROMPT,
-          flagPrompt: IEP_FLAG_PROMPT,
-          parentContext,
-        }),
-      });
-
-      // Background functions return 202 Accepted. Anything else is a hard failure.
-      if (startRes.status !== 202 && !startRes.ok) {
-        const txt = await startRes.text().catch(() => "");
-        throw new Error(
-          "Couldn't start the IEP analysis" + (txt ? ` (${txt.slice(0, 120)})` : "") + "."
-        );
-      }
-
-      // Poll the result endpoint until done or error. Max ~4 minutes.
-      const POLL_INTERVAL_MS = 3000;
-      const MAX_POLLS = 80; // 80 * 3s = 240s
-      let polls = 0;
-      let finished = false;
-
-      while (!finished && polls < MAX_POLLS) {
-        await new Promise((r) => setTimeout(r, POLL_INTERVAL_MS));
-        polls += 1;
-
-        let statusData;
-        try {
-          const pollRes = await fetch(
-            "/.netlify/functions/iep-result?jobId=" + encodeURIComponent(jobId)
-          );
-          statusData = await pollRes.json();
-        } catch (e) {
-          // Transient network hiccup — keep polling
-          continue;
-        }
-
-        if (statusData.status === "processing") {
-          setIepProcessing(statusData.stage === "flagging" ? "flagging" : "extracting");
-        } else if (statusData.status === "done") {
-          if (statusData.extraction) setIepExtraction(statusData.extraction);
-          setIepFlags(statusData.flags);
-          setIepProcessing(null);
-          finished = true;
-        } else if (statusData.status === "error") {
-          throw new Error(statusData.error || "IEP analysis failed.");
-        }
-        // status === "pending" → keep polling
-      }
-
-      if (!finished) {
-        throw new Error(
-          "The IEP analysis is taking longer than expected. Your file may be very large or complex. Try a smaller PDF, or skip this step and tell me about the IEP in the chat instead."
-        );
-      }
+      // Stage B — flagging. A second, separate call to claude.js (text only). ~10-20s.
+      // Splitting extraction and flagging into two requests keeps each one well
+      // under the 30s function limit.
+      const flags = await callClaudeForJSON(
+        IEP_FLAG_PROMPT,
+        "Identify the most relevant facts in this IEP that could support a colorable due process claim, and pair each with a question for the parent.\n\n" +
+          "iep_extraction:\n" +
+          JSON.stringify(extraction, null, 2) +
+          "\n\nparent_context:\n" +
+          JSON.stringify(parentContext, null, 2)
+      );
+      setIepFlags(flags);
+      setIepProcessing(null);
     } catch (e) {
+      const msg = (e && e.message) || "unknown error";
+      // Give a more specific hint if it looks like a timeout
+      const isTimeout = /timeout|timed out|504|502|gateway/i.test(msg);
       setIepError(
-        "Couldn't process the IEP — " +
-          (e.message || "unknown error") +
-          ". You can try again, try a different file, or skip this step."
+        isTimeout
+          ? "The IEP took too long to process — this usually means the file is very large or has many pages. Try a smaller or compressed PDF, or skip this step and just tell me about the IEP in the chat."
+          : "Couldn't process the IEP — " + msg + ". You can try again, try a different file, or skip this step."
       );
       setIepProcessing(null);
     }
