@@ -3138,8 +3138,6 @@ async function callClaude(messages, dynamicSystem) {
   throw new Error(`No response from model (got blocks: ${blockTypes || "none"})`);
 }
 
-// Calls Claude without forcing tool use, for tasks like checklist generation
-// where we want a simple JSON response.
 // Marks an Error as already-phrased for the parent so callers can render it
 // verbatim instead of wrapping it in a generic "Couldn't process the IEP — ..."
 function userFacingError(message) {
@@ -3148,6 +3146,11 @@ function userFacingError(message) {
   return e;
 }
 
+// Calls Claude without forcing tool use, for tasks like checklist generation
+// where we want a simple JSON response. opts.strictMaxTokens (opt-in) makes
+// the function throw a parent-friendly userFacingError when the model stops
+// because of max_tokens — used by the IEP flow, where a truncated extraction
+// silently corrupts the downstream flagging step.
 async function callClaudeForJSON(systemPrompt, userMessage, model = MODEL, maxTokens = 3000, opts = {}) {
   const response = await fetch(API_URL, {
     method: "POST",
@@ -3226,39 +3229,229 @@ function fileToBase64(file) {
 
 // Extract plain text from a PDF entirely in the browser using PDF.js. This
 // keeps the heavy PDF parsing off the server, so it doesn't count against the
-// Netlify function timeout. Returns { text, pageCount, hadTextLayer }.
+// Netlify function timeout.
+//
+// Returns { text, pageCount, hadTextLayer, perPageChars, issues } where
+// `issues` flags structural problems that often produce jumbled or partial
+// text (multi-column layouts, rotated pages, scanned pages mixed in with
+// typed ones). Callers should decide whether to surface those as a hard
+// error rather than feed bad text into the model — see pdfQualityBlocker
+// below for the heuristics, and processIEP for how they map to user-facing
+// messages.
 async function extractPdfText(file) {
   if (!window.pdfjsLib) {
     throw new Error("PDF reader didn't load. Refresh the page and try again.");
   }
   const arrayBuffer = await file.arrayBuffer();
   const pdf = await window.pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-  let fullText = "";
-  let totalChars = 0;
   const pageCount = pdf.numPages;
 
+  // Gather a structural snapshot per page so detection can run as a pure
+  // function on plain data (and so it's testable from Node without PDF.js).
+  const pages = [];
   for (let pageNum = 1; pageNum <= pageCount; pageNum++) {
     const page = await pdf.getPage(pageNum);
     const content = await page.getTextContent();
-    // Reconstruct lines using item positions so the text isn't a jumble
+    pages.push({
+      rotate: typeof page.rotate === "number" ? page.rotate : 0,
+      items: content.items.map((i) => ({
+        str: i.str || "",
+        x: i.transform ? i.transform[4] : null,
+        y: i.transform ? i.transform[5] : null,
+      })),
+    });
+  }
+
+  return analyzePdfPages(pages);
+}
+
+// Pure function: takes an array of { rotate, items: [{str, x, y}] } and
+// returns the reconstructed text plus per-page char counts and structural
+// issues. Pulled out of extractPdfText so it can be unit-tested without
+// PDF.js — see test-fixtures/verify-detection.js.
+function analyzePdfPages(pages) {
+  const pageCount = pages.length;
+  const perPageChars = [];
+  const perPageText = [];
+  const issues = {
+    scannedPages: [],     // pages with almost no extractable text
+    rotatedPages: [],     // pages whose PDF rotation is non-zero
+    multiColumnPages: [], // pages whose line-start X positions look bimodal
+  };
+  let totalChars = 0;
+
+  for (let i = 0; i < pageCount; i++) {
+    const { rotate, items } = pages[i];
+    const pageNum = i + 1;
+
+    if (rotate && rotate !== 0) {
+      issues.rotatedPages.push(pageNum);
+    }
+
+    // Reconstruct lines using item Y positions, same heuristic as before.
+    // Also record where each line starts (X of first item) for the multi-
+    // column check below.
     let lastY = null;
     let pageText = "";
-    for (const item of content.items) {
+    const lineStartXs = [];
+    let lineHasContent = false;
+    for (const item of items) {
       if (!item.str) continue;
-      const y = item.transform ? item.transform[5] : null;
-      if (lastY !== null && y !== null && Math.abs(y - lastY) > 2) {
+      const y = item.y;
+      const x = item.x;
+      const isNewLine = lastY !== null && y !== null && Math.abs(y - lastY) > 2;
+      if (isNewLine) {
         pageText += "\n";
+        lineHasContent = false;
+      }
+      if (!lineHasContent && x !== null && item.str.trim().length > 0) {
+        lineStartXs.push(x);
+        lineHasContent = true;
       }
       pageText += item.str + " ";
       lastY = y;
     }
-    fullText += "\n\n--- Page " + pageNum + " ---\n" + pageText.trim();
-    totalChars += pageText.trim().length;
+    const trimmed = pageText.trim();
+    perPageText.push(trimmed);
+    perPageChars.push(trimmed.length);
+    totalChars += trimmed.length;
+
+    if (trimmed.length < 30) {
+      issues.scannedPages.push(pageNum);
+    }
+
+    if (looksMultiColumn(lineStartXs)) {
+      issues.multiColumnPages.push(pageNum);
+    }
   }
 
-  // If almost no text came out, it's likely a scanned/image-only PDF
+  const fullText = perPageText
+    .map((t, i) => "\n\n--- Page " + (i + 1) + " ---\n" + t)
+    .join("")
+    .trim();
+
+  // If almost no text came out across the whole PDF, it's likely image-only.
   const hadTextLayer = totalChars > 80;
-  return { text: fullText.trim(), pageCount, hadTextLayer };
+
+  return { text: fullText, pageCount, hadTextLayer, perPageChars, issues };
+}
+
+// Bimodal line-start X positions suggest a multi-column layout: lots of
+// lines start near the left edge AND lots start near the middle/right, with
+// few in between. Tables don't trigger this because every table row's first
+// item is still in the leftmost column. Requires at least 10 lines to fire
+// (very short pages aren't reliable).
+function looksMultiColumn(lineStartXs) {
+  if (lineStartXs.length < 10) return false;
+  let minX = Infinity, maxX = -Infinity;
+  for (const x of lineStartXs) {
+    if (x < minX) minX = x;
+    if (x > maxX) maxX = x;
+  }
+  const range = maxX - minX;
+  if (range < 100) return false; // line starts all clustered in one column
+
+  // Bin into 5 horizontal slices; multi-column shows up as mass at the
+  // left AND somewhere right-of-center, with the middle largely empty.
+  const bins = [0, 0, 0, 0, 0];
+  for (const x of lineStartXs) {
+    let idx = Math.floor(((x - minX) / range) * 5);
+    if (idx > 4) idx = 4;
+    bins[idx]++;
+  }
+  const total = lineStartXs.length;
+  const leftHeavy = bins[0] > total * 0.2;
+  const rightHeavy = bins[3] + bins[4] > total * 0.2;
+  const middleLight = bins[2] < total * 0.1;
+  return leftHeavy && rightHeavy && middleLight;
+}
+
+// Decides whether the structural issues from analyzePdfPages are severe
+// enough to refuse the extraction and tell the parent. Returns null if
+// the PDF looks OK to send to the model, or a parent-friendly string if
+// we should stop.
+//
+// Design note: per the project priority, a parent who gets no result is
+// far better off than a parent who gets a confidently wrong result. So
+// the thresholds here are intentionally cautious — false positives ("I
+// can't read this, please paste the key parts") are acceptable; false
+// negatives (feeding garbled text into Haiku and presenting the output
+// as a real review) are not.
+function pdfQualityBlocker(extractionResult) {
+  const { pageCount, issues } = extractionResult;
+  if (pageCount === 0) return null;
+
+  const lines = [];
+
+  // Mixed scanned/typed: even one fully-empty page in the middle of a
+  // typed IEP means the parent is missing whatever was on that page.
+  if (issues.scannedPages.length > 0) {
+    const fraction = issues.scannedPages.length / pageCount;
+    // A 1-page header/title page with no text isn't worth blocking on.
+    // More than ~15% of pages, or 2+ pages on a short IEP, is.
+    if (fraction > 0.15 || issues.scannedPages.length >= 2) {
+      lines.push(
+        issues.scannedPages.length +
+          " of " +
+          pageCount +
+          " pages had no readable text (" +
+          describePageList(issues.scannedPages) +
+          ") — those pages are likely scans or images, and I'd have to skip them entirely."
+      );
+    }
+  }
+
+  if (issues.rotatedPages.length > 0) {
+    lines.push(
+      issues.rotatedPages.length +
+        " page(s) are rotated (" +
+        describePageList(issues.rotatedPages) +
+        ") — text on rotated pages often comes out in the wrong order."
+    );
+  }
+
+  // Multi-column is only a blocker if a meaningful fraction of pages look
+  // that way — a single multi-column cover sheet on a 30-page IEP isn't
+  // worth refusing over.
+  if (issues.multiColumnPages.length > 0) {
+    const fraction = issues.multiColumnPages.length / pageCount;
+    if (fraction > 0.3) {
+      lines.push(
+        "Most pages (" +
+          describePageList(issues.multiColumnPages) +
+          ") use a multi-column layout, which I can't reliably read in order — the text often comes out jumbled."
+      );
+    }
+  }
+
+  if (lines.length === 0) return null;
+
+  return (
+    "I'm worried I'd misread this IEP rather than give you nothing:\n\n• " +
+    lines.join("\n• ") +
+    "\n\nRather than risk a confidently wrong analysis, I'd rather you tell me about the IEP in the chat — services, goals, classification, placement — and I'll work from that."
+  );
+}
+
+// Compact "1, 2, 4-7, 10" formatting for a sorted list of page numbers.
+function describePageList(pages) {
+  if (!pages || pages.length === 0) return "";
+  const sorted = [...pages].sort((a, b) => a - b);
+  const ranges = [];
+  let start = sorted[0];
+  let prev = sorted[0];
+  for (let i = 1; i < sorted.length; i++) {
+    const n = sorted[i];
+    if (n === prev + 1) {
+      prev = n;
+      continue;
+    }
+    ranges.push(start === prev ? String(start) : start + "-" + prev);
+    start = n;
+    prev = n;
+  }
+  ranges.push(start === prev ? String(start) : start + "-" + prev);
+  return "page" + (sorted.length === 1 ? " " : "s ") + ranges.join(", ");
 }
 
 // Calls Claude with a PDF as a document block plus a system prompt and a text
@@ -5683,12 +5876,22 @@ function ChatTool() {
       // Step 1 — extract the PDF text IN THE BROWSER with PDF.js. This is the
       // heavy part, and it runs on the user's machine with no server time
       // limit. The server only ever sees plain text after this.
-      const { text: pdfText, hadTextLayer } = await extractPdfText(file);
+      const extractionResult = await extractPdfText(file);
+      const { text: pdfText, hadTextLayer } = extractionResult;
 
       if (!hadTextLayer) {
         throw userFacingError(
           "This looks like a scanned or photographed IEP — there's no readable text in the file, just images. I can't read those automatically. The easiest path: open the IEP and type or paste the key details (services, goals, classification, placement) into the chat, and I'll work from that."
         );
+      }
+
+      // Structural quality check: if pages are mixed scanned/typed, rotated,
+      // or laid out in multiple columns, the reconstructed text is likely
+      // jumbled or partial. Refuse rather than feed bad input to Haiku and
+      // hand the parent a confidently wrong review.
+      const blocker = pdfQualityBlocker(extractionResult);
+      if (blocker) {
+        throw userFacingError(blocker);
       }
 
       // Step 2 — extraction call. Send the TEXT (not the PDF) to Claude. Text
@@ -5706,6 +5909,21 @@ function ChatTool() {
         4000,
         { strictMaxTokens: true }
       );
+
+      // Post-extraction self-report: the IEP_EXTRACT prompt asks Haiku to
+      // rate its own completeness. If it says "low", don't paper over that
+      // by running Stage B on shaky structured data — surface it.
+      const completeness = extraction && extraction.extraction_quality && extraction.extraction_quality.completeness;
+      if (completeness === "low") {
+        const missing = (extraction.extraction_quality.unclear_or_missing || []).slice(0, 3);
+        const detail = missing.length > 0 ? " Specifically: " + missing.join("; ") + "." : "";
+        throw userFacingError(
+          "I tried, but I couldn't reliably read this IEP — too much of it came through unclear." +
+            detail +
+            " Rather than guess at things and hand you a wrong analysis, please tell me the key details (services, goals, classification, placement) in the chat and I'll work from that."
+        );
+      }
+
       setIepExtraction(extraction);
 
       // Now flagging — show that stage in the spinner.
