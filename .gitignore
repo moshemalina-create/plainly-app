@@ -1,0 +1,8 @@
+# Local Netlify folder
+.netlify
+
+# PDFs — never commit. Real IEPs contain student PII (names, DOBs,
+# evaluation results, addresses). Sample PDFs go in test-fixtures/ for
+# local testing only; see test-fixtures/README.md.
+*.pdf
+*.PDF
