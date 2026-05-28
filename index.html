@@ -3140,7 +3140,15 @@ async function callClaude(messages, dynamicSystem) {
 
 // Calls Claude without forcing tool use, for tasks like checklist generation
 // where we want a simple JSON response.
-async function callClaudeForJSON(systemPrompt, userMessage, model = MODEL, maxTokens = 3000) {
+// Marks an Error as already-phrased for the parent so callers can render it
+// verbatim instead of wrapping it in a generic "Couldn't process the IEP — ..."
+function userFacingError(message) {
+  const e = new Error(message);
+  e.userFacing = true;
+  return e;
+}
+
+async function callClaudeForJSON(systemPrompt, userMessage, model = MODEL, maxTokens = 3000, opts = {}) {
   const response = await fetch(API_URL, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -3156,6 +3164,16 @@ async function callClaudeForJSON(systemPrompt, userMessage, model = MODEL, maxTo
     throw new Error(`API ${response.status}: ${err.slice(0, 200)}`);
   }
   const data = await response.json();
+  // Opt-in strict check: if the model ran out of output budget, the JSON it
+  // produced is truncated. The downstream parseJSON would either throw or
+  // (worse) silently succeed on a partial object whose later fields are
+  // missing. For the IEP flow we'd rather error out clearly than feed a
+  // half-extracted IEP into the flagging step.
+  if (opts.strictMaxTokens && data.stop_reason === "max_tokens") {
+    throw userFacingError(
+      "I ran out of room while reading this IEP — it's longer or more detailed than I budgeted for, so the result got cut off. Try a shorter IEP, or skip this step and tell me the key details (services, goals, classification, placement) in the chat."
+    );
+  }
   const text = data.content
     .filter((b) => b.type === "text")
     .map((b) => b.text)
@@ -5668,18 +5686,25 @@ function ChatTool() {
       const { text: pdfText, hadTextLayer } = await extractPdfText(file);
 
       if (!hadTextLayer) {
-        throw new Error(
+        throw userFacingError(
           "This looks like a scanned or photographed IEP — there's no readable text in the file, just images. I can't read those automatically. The easiest path: open the IEP and type or paste the key details (services, goals, classification, placement) into the chat, and I'll work from that."
         );
       }
 
       // Step 2 — extraction call. Send the TEXT (not the PDF) to Claude. Text
       // analysis is fast, so this stays well under the function time limit.
+      // 4000-token budget: a long IEP with many goals/services/accommodations
+      // can plausibly fill 2500-3500 tokens of structured output, and a
+      // truncated extraction silently breaks Stage B. strictMaxTokens means
+      // the call throws (with a parent-friendly message) instead of returning
+      // a half-extracted IEP.
       const extraction = await callClaudeForJSON(
         IEP_EXTRACT_PROMPT,
         "Here is the full text extracted from a parent's IEP PDF. Extract it into the structured schema described in the system prompt. Return ONLY the JSON object.\n\nIEP TEXT:\n" +
           pdfText,
-        FAST_MODEL
+        FAST_MODEL,
+        4000,
+        { strictMaxTokens: true }
       );
       setIepExtraction(extraction);
 
@@ -5698,7 +5723,8 @@ function ChatTool() {
 
       // Step 3 — flagging call. Text only, on Haiku for speed, with a bounded
       // token budget so the structured output stays small enough to finish
-      // under the 26s function limit.
+      // under the 26s function limit. strictMaxTokens so a truncated flag
+      // list surfaces as an error the parent can act on.
       const flags = await callClaudeForJSON(
         IEP_FLAG_PROMPT,
         "Identify the most relevant facts in this IEP that could support a colorable due process claim, and pair each with a question for the parent.\n\n" +
@@ -5707,7 +5733,8 @@ function ChatTool() {
           "\n\nparent_context:\n" +
           JSON.stringify(parentContext, null, 2),
         FAST_MODEL,
-        2500
+        2500,
+        { strictMaxTokens: true }
       );
       setIepFlags(flags);
       setIepProcessing(null);
@@ -5717,8 +5744,8 @@ function ChatTool() {
       setIepError(
         isTimeout
           ? "The analysis took too long. Try a shorter IEP, or skip this step and just tell me about the IEP in the chat."
-          : msg.indexOf("scanned") !== -1
-          ? msg // the scanned-PDF message is already parent-friendly
+          : e && e.userFacing
+          ? msg // already a parent-friendly message from the detection layer
           : "Couldn't process the IEP — " + msg + ". You can try again, try a different file, or skip this step."
       );
       setIepProcessing(null);
