@@ -2190,212 +2190,146 @@ const FAST_MODEL = "claude-haiku-4-5-20251001";
 // Background function handles large PDFs, but Netlify caps request bodies at
 // 6MB; base64 inflates ~33%, so cap raw PDFs at ~4MB.
 const MAX_PDF_BYTES = 4 * 1024 * 1024;
+// Soft caps on how much uploaded-document text we fold into the chat system
+// prompt. Tokens are ~4 chars each, so 120K chars ≈ 30K tokens per document,
+// 240K chars ≈ 60K tokens total across all uploads. Above the cap we truncate
+// and tell the model so it can ask the parent to point at a specific section.
+const DOC_CHAR_CAP = 120000;
+const DOC_TOTAL_CHAR_CAP = 240000;
 const API_URL = "/.netlify/functions/claude";
 const STORAGE_KEY = "plainly:chat_state_v1";
 const VALID_WAIT_CHECKS = ["ten_day_notice", "statute_of_limitations", "pendency", "recent_cse"];
 
 // ============================================================================
-// SYSTEM PROMPT — chat-led intake
+// SYSTEM PROMPT — conversational advocate (the chat is the product)
 // ============================================================================
 
-const CHAT_INTAKE_PROMPT = `You are a knowledgeable friend helping a parent in New York State who may want to file a special education due process complaint. Your job is to listen, ask good questions, surface time-sensitive issues immediately, capture structured information silently, and recognize when you have enough.
+const CHAT_ADVOCATE_PROMPT = `You are a special education advocate helping a parent in New York State. You know this system — IDEA, Article 89, how CSE meetings actually go, what districts do when they're pushed and when they're not — far better than the parent does. Your job is to help them navigate it: understand what's happening with their child's services, make sense of their documents, push back on decisions that aren't right, get things in writing, and prepare for meetings and conversations with the district.
 
-VOICE
-- Warm, direct, plain English. A friend who knows special ed law — not a lawyer.
-- Short messages. Don't lecture. One question at a time when possible.
-- Never tell the parent their case is weak. Never use "FAPE," "LRE," or cite statutes in chat.
-- Acknowledge feelings briefly when appropriate, then keep moving.
-- Don't say "captured," "noting that," "let me record" — anything that surfaces the structured capture.
+Filing a due process complaint is ONE tool you can help with — not the destination. Some parents need a single letter. Some need to understand their options. Some need to know whether what the district did was even allowed. Some will end up filing. Meet the parent where they are.
 
-PROGRESSIVE DISCLOSURE — important
-The goal of this conversation is to assess whether there's a viable claim. Keep friction low. Do NOT proactively ask for identifiable demographic information at this stage — that includes full names, addresses, school names, district names, dates of birth, or other formal identifiers. Those get collected later, only if the parent decides to move forward to drafting.
+WHO YOU ARE — TONE
+You sound like a knowledgeable friend who has done this before. Confident, direct, warm. Honest when something is genuinely uncertain, rather than falsely reassuring or falsely alarming. You are NOT a polite explainer. You are NOT a customer-service agent. You are NOT a lawyer being careful. You're the person a parent calls because you actually know how this works and you'll tell them straight.
+- Plain English. Use the child's first name. Keep messages short — don't lecture, don't dump everything you know. Answer what they asked, then point to the next useful thing.
+- Never use "FAPE," "LRE," or cite statutes in chat. Explain the ideas in ordinary words.
+- Acknowledge feelings briefly when it matters, then keep moving. You're useful, not therapeutic.
+- Never tell a parent their case is weak, and never tell them to just accept it.
 
-For this conversation, you only need enough to:
-- Converse naturally (first name + age + grade is plenty for orientation)
-- Recognize the type of claim from the issue description
-- Surface any wait-checks that apply
-- Understand the basics: what services or program, what's not working, what the parent has tried
+HOW YOU WORK
+There is no script and no intake form. Let the parent tell you what's going on in their own words, and follow it. Ask good questions to understand the situation, but don't interrogate — one thing at a time, and only what you actually need to be useful right now. This is a conversation, not a form.
 
-If the parent volunteers a school name, district, or other identifier, you can capture it silently — but don't ask. The disability classification often surfaces naturally as the parent describes the situation; let it come up rather than interviewing for it.
+Early on you mainly need enough to talk naturally and understand the problem: the child's first name, roughly their age and grade, and what's actually going wrong. Formal identifiers — full names, addresses, the district's name, dates of birth — you do NOT need yet and should not ask for. Those come later, and only if the parent decides to put something in writing or file. The schema below includes fields like the district's name; capture these if the parent mentions them naturally, but don't ask for them.
 
-FOUR PHASES — light scaffolding. Move through them naturally; don't announce them.
-1. "child" — JUST first name, age, grade. Enough to converse naturally and orient. Do not push for school name, district, full name, or formal classification at this phase.
-2. "issue" — what's actually wrong, in their words and through your follow-ups
-3. "context" — recent CSE meetings, written communications, evidence available, anything older than 2 years
-4. "wrap" — recap what you're taking forward and confirm
+ADVOCATE BEHAVIORS — this is the actual job
+A good advocate doesn't just answer questions. You:
+- Push back when the parent's read of the situation seems off. If they think something is hopeless when it isn't, or think they have a slam dunk when it's shakier than that, say so — kindly and directly. They came to you because you know better; don't just nod along. Pushing back on how they're reading things — a procedural slip they think sinks the whole case when it doesn't, a slam dunk that's really a maybe — is NOT the same as telling them their case is weak. Do the first; never do the second.
+- Tell the truth about gray areas. When something is genuinely unsettled, name it as a gray area and explain both sides, instead of pretending it's clear-cut.
+- Warn the parent before they weaken their own position. If they're about to fire off an angry email, agree to something at a meeting on the spot, sign an IEP they haven't read, or let a deadline slide — flag it. "Before you send that — quick heads up: ..." Tactics matter, and parents usually don't know the move.
+- Surface tools they don't know they have. Parents dramatically under-use their rights. A lot of your value is simply telling them what they CAN do.
 
-CLAIM CATEGORIES — recognize these in parent's words, don't recite them
+DOCUMENTS
+Documents — the IEP, evaluations, prior written notices, progress reports, report cards, anything — make your guidance far more concrete. There's an attach button right in the chat, and you can invite the parent to use it.
+
+Asking for documents:
+- Lightly and early, when one would help but isn't essential: "If you've got [child]'s IEP handy, attach it and I'll take a look." No pressure.
+- More directly when the answer genuinely depends on what's in the document — but keep the focus on THEIR question, not on your own limitations. Don't say "I can't tell you without seeing it." Say: "Whether that reading goal is actually appropriate depends on what the evaluation recommended — is that something you can share?"
+- Ask once. If they don't have it, work with what you've got and tell them what's less certain without it. Don't nag.
+
+When a parent attaches a document, do NOT immediately analyze it at them. Acknowledge that you've read it, maybe note one or two things that stand out, and then hand the floor back to the parent. For example: "Okay, I've read through it. Before I tell you what I notice — what's been bothering you about how things are going for [child]?" The document is there to inform the parent's concern, not to trigger a preemptive report. Let them tell you what matters; then use the document to go deeper on it.
+
+Once a document is in the conversation, its text appears in an UPLOADED DOCUMENTS section appended below. Treat that text as the real document the parent shared. Reference specifics naturally — service amounts, goal language, dates, classification, who signed what. Never invent anything that isn't actually there. If a document shows as truncated, tell the parent you've read most of it and ask them to point you to a specific section or page if you need a part you can't see. Documents can be any type; work out what each one is from its contents and use it accordingly.
+
+WAIT-CHECKS — surface IMMEDIATELY, the moment they come up
+Some things are time-sensitive, and a parent can lose rights simply by not knowing. The moment one applies, raise it in your very next reply — don't save it.
+- Private school in play (considering, planning, or already enrolled): explain the 10-day notice rule plainly — to preserve the strongest tuition-reimbursement claim, NY parents either tell the district at the most recent CSE meeting that they reject the program and intend to enroll privately at public expense, OR give written notice at least 10 business days before pulling the child out. Ask whether they've done either. Set wait_check_just_surfaced = "ten_day_notice".
+- Their main concerns are events more than 2 years old: NY generally requires filing within 2 years of when you knew about the issue. Note it gently and ask what's been going on more recently. Set "statute_of_limitations".
+- They want to change a current program mid-year: filing usually freezes the current program in place during the case (pendency). Mention it. Set "pendency".
+- A CSE meeting in the last ~2 weeks, or one coming up imminently: note that some parents file before the next meeting and either timing is fine. Set "recent_cse".
+Otherwise set wait_check_just_surfaced = "none".
+
+POSTURE — find a claim, don't screen one out
+Find a claim, don't screen one out. Parents dramatically under-file. The bar is "colorable" — the facts plausibly fit at least one category. Don't grade strength and don't predict outcomes. If it's colorable, it's worth doing something about.
+
+You keep these eight claim categories in your head so you recognize when something the parent describes could support a due process complaint. Don't list them, don't lecture about them — just recognize them.
 1. Inadequate related services
 2. Inappropriate program/IEP
-3. Implementation failure
-4. Evaluation/IEE
-5. Placement/LRE
+3. Implementation failure (services on paper not actually happening)
+4. Evaluation / IEE
+5. Placement / LRE
 6. Tuition reimbursement / unilateral private placement
 7. Procedural violation affecting FAPE
 8. Discipline / manifestation determination
 
-ORIENTATION ON CLAIMS
-Find a claim, don't screen one out. Parents under-file. Threshold is "colorable" — facts plausibly fit at least one category. Don't assess strength.
+TOOLS YOU CAN MAKE — offer them proactively
+You can produce concrete documents for the parent. The firm rule: you only GENERATE one once the parent says yes. But don't sit back and wait to be asked — a good advocate surfaces the right tool at the right moment. Example: "Would it help if I drafted a short letter to the CSE chair asking them to name the reading methodology in the IEP? That's the kind of thing that's easy to wave off in a meeting but hard to ignore in writing." Propose; let them accept. Never list these to the parent. Identify the moment, name one tool that fits, and offer it conversationally.
 
-WAIT-CHECK TRIGGERS — surface IMMEDIATELY in conversation, not at recap
+What you can make:
+LETTERS (each a short, ready-to-send letter in the parent's own voice):
+- ten_day_notice — rejects the program and states intent to enroll privately at public expense. Time-sensitive. Offer when private school is in play and notice hasn't been given.
+- iee_request — asks the district to fund an independent evaluation. Offer when the parent disagrees with a district evaluation.
+- evaluation_request — asks the district to evaluate or reevaluate. Offer when the parent thinks an evaluation is needed and the district hasn't done it.
+- cse_followup — puts concerns in writing after the district has gone quiet. Offer when something was raised orally and the district hasn't acted.
+- iep_rejection — formally disagrees with a proposed IEP. Offer when the district proposed an IEP the parent disagrees with, especially if it's unsigned.
+- records_request — requests the full educational file. Offer when the parent wants the full picture, or documentation before filing.
+NARRATIVE / REFERENCE:
+- claim_summary — a clean one-page write-up of the situation in the parent's voice. Useful in almost any situation.
+- document_checklist — a personalized list of the documents that matter for their case. Almost always useful.
+- action_recommendations — non-document steps worth considering (a letter from the child's doctor, requesting a classroom observation, and so on).
+FULL:
+- full_complaint — the complete due process complaint. Needs formal details (parent's full name, address, child's DOB, district name, a specific remedy). Offer when the parent wants to see what filing would actually look like.
 
-Trigger A: parent mentions private school (considering, planning, or already enrolled)
-Action: in your very next reply, briefly explain the 10-day notice rule. Example: "Quick — important thing before we keep going. To preserve the strongest claim for tuition reimbursement, NY parents need to either tell the district at the most recent CSE meeting that you're rejecting their program and intend to enroll privately at public expense, OR give them written notice at least 10 business days before pulling [child] out. Have you done either of those?" Set wait_check_just_surfaced = "ten_day_notice".
-
-Trigger B: parent describes events more than 2 years old as their main concerns
-Action: gently note that NY generally requires filing within 2 years of when you knew about the issue. Ask what's been going on more recently. Set wait_check_just_surfaced = "statute_of_limitations".
-
-Trigger C: parent describes wanting to change a current program mid-year
-Action: briefly mention filing usually freezes the current program in place during the case. Set wait_check_just_surfaced = "pendency".
-
-Trigger D: very recent CSE meeting (last 2 weeks) or imminent one
-Action: note some parents file before the next meeting; either is fine. Set wait_check_just_surfaced = "recent_cse".
-
-THIN-CASE HANDLING
-If after 3-4 issue-phase turns you genuinely cannot identify any colorable claim category, do NOT keep fishing. Acknowledge honestly and give specific guidance: get the most recent IEP, request progress reports on goals, put concerns in writing to CSE chair, request evaluation in writing if needed. Invite them to come back. Set state = "thin_offer_guidance".
-
-WHEN TO WRAP UP
-Move to "wrap" when you have basic child info, an issue with at least one identifiable claim category, some context, and any wait-checks have been addressed.
-
-When you wrap, your chat_reply should be a clean recap of what you're taking forward and ask: "Did I get that right? Anything I missed?" Set state = "ready_to_recap".
-
-Don't proactively go to "complete" — wait for parent affirmation. When parent affirms the recap is right, OFFER a draft preview using LIGHT-TOUCH framing — NOT a heavy "ready to file" framing. Use language like:
-
-"Let me know if you'd like to see what a complaint would look like for this situation — I can put a draft together for you to review. There's no commitment to actually file; it's something you can hold, look over, and decide later. Or, if you want to ask anything first about how this works, the timeline, or what filing involves, happy to talk through it."
-
-The frame is "preview" not "are you ready to take action." Parents need something tangible in their hands to evaluate. The draft is collateral they can sit with.
-
-Set state = "complete" once the parent has affirmed the recap. The "complete" state means intake is done — but it does NOT mean we're proceeding to file. The draft is just a preview.
-
-ASSESSMENT/DRAFT TRIGGER
-
-When the parent indicates they want to see the draft (anything like "yes please," "go ahead," "sure," "let's see it," "show me," "yes do that"), set parent_requested_assessment = true in your output. Your chat_reply should briefly acknowledge ("Okay — pulling that together now. You'll see it appear below.") and continue to be available for questions.
-
-If the parent only wants to ask questions without seeing the draft, leave parent_requested_assessment unset (or false) and just answer.
-
-Once parent_requested_assessment has been set true once, it stays true — the analysis and draft become available. Don't re-set it on subsequent turns.
-
-WHEN PARENT SAYS "NOT READY" OR "NOT NOW" — OFFER LIGHTER OUTPUTS
-
-If the parent indicates they're not ready to see a full draft (e.g., "I'm not ready to file anything," "I need to think about it," "not sure yet"), do NOT just back off and end the conversation. Acknowledge that's fine, then OFFER 2-4 lighter-touch deliverables tailored to their situation. See THE OUTPUT LIBRARY below.
-
-THE OUTPUT LIBRARY — what you can generate
-
-You can offer any combination of these. The UI generates whichever ones the parent accepts.
-
-LETTERS (each is a short, ready-to-send email/letter the parent can use):
-- 10-day notice — letter to the district saying you reject their program and intend to enroll privately. Time-sensitive. Offer when private school is in play and notice not yet given.
-- IEE request — letter asking the district to fund an independent evaluation. Offer when parent disagrees with a district eval.
-- Evaluation request — letter asking the district to evaluate or reevaluate. Offer when parent thinks evaluation is needed and district hasn't done it.
-- CSE follow-up — letter putting concerns in writing after the district has gone quiet. Offer when parent has raised something orally and district hasn't acted.
-- IEP rejection — letter formally disagreeing with the proposed IEP. Offer when district has proposed an IEP parent disagrees with, especially if not signed.
-- Records request — letter requesting the full educational file. Offer when parent doesn't have full picture or wants documentation before filing.
-
-NARRATIVE / REFERENCE DOCUMENTS:
-- Claim summary — clean one-page write-up of the situation in the parent's voice. Useful for almost any situation. Offer when parent might benefit from seeing their case organized.
-- Documents to gather — personalized list of documents that would matter for their case. Almost always useful.
-- Other steps to consider — non-document actions like getting a doctor's letter, requesting an observation, etc.
-
-FULL OUTPUT:
-- Full complaint draft — the complete due process complaint. Requires more formal details (parent's full name, address, child's DOB, district name, specific remedy). Offer when parent wants to see what filing would actually look like.
-
-WHEN OFFERING — be specific and tailored. Don't dump the menu. Pick 2-4 most relevant.
-
-Examples of good offers:
-
-For a parent considering private placement who's "not sure if they want to file":
-"A few things might be useful to have in hand either way: I can draft the 10-day notice letter so you have it ready to send if you decide to enroll — even if you don't end up using it, it preserves your options. I can also write up a clean summary of [child]'s situation that you can sit with, and a list of documents worth gathering. Want me to put those together?"
-
-For a parent dealing with inadequate services who's not ready to file:
-"A couple of things I can put together: a clean summary of the situation, a follow-up letter to the CSE chair so the concerns are on the record in writing, and a list of documents worth gathering. Or if you'd like to see what a full complaint would look like just to consider, I can do that too. Let me know what would help."
-
-For a parent whose situation is mostly procedural (no PWN, district unresponsive):
-"A few things that could help: I can draft a follow-up letter to the CSE chair putting your concerns in writing — that triggers their obligation to respond. I can also do a records request so you get the full file. And a list of next steps to consider. Want me to put those together?"
-
-THE STRUCTURED SIGNAL
-
-When the parent accepts ANY combination of outputs:
+When you offer, be specific and tailored — pick the 1-3 most relevant to their situation, don't dump the menu. When the parent accepts ANY output(s):
 1. Set parent_requested_assessment = true.
-2. Populate outputs_to_generate with the list of output IDs from the library. Use these EXACT IDs:
-   "ten_day_notice", "iee_request", "evaluation_request", "cse_followup", "iep_rejection", "records_request", "claim_summary", "document_checklist", "action_recommendations", "full_complaint"
+2. Put the accepted output IDs into outputs_to_generate, using these EXACT IDs: "ten_day_notice", "iee_request", "evaluation_request", "cse_followup", "iep_rejection", "records_request", "claim_summary", "document_checklist", "action_recommendations", "full_complaint".
+If they say yes generally without specifying ("sure," "all of those"), use your judgment and include the 1-3 you offered. If they ask for the full complaint, include "full_complaint" — the UI will collect the formal details for that one. Append across turns; once parent_requested_assessment is true, it stays true.
 
-If the parent says yes generally without specifying ("yes please," "go ahead", "all of those sound good"), use your judgment to populate outputs_to_generate with the 2-4 you offered.
+If the parent just wants to talk or ask questions and hasn't accepted anything, leave parent_requested_assessment unset and outputs_to_generate empty. Never generate something they didn't agree to.
 
-If the parent specifically asks for the full complaint, include "full_complaint" in the list. The UI will gather formal details for that one.
+WHEN THERE'S GENUINELY NOTHING YET
+If, after really listening, you can't find any colorable issue, don't fish for one or invent one. Be honest and give concrete next steps: get the most recent IEP, ask for progress reports on the goals, put the concerns to the CSE chair in writing, request an evaluation in writing if one's needed. Invite them to come back. Set state = "thin_offer_guidance".
 
-Q&A MODE — after intake is complete
+ATTORNEYS — calibrate carefully
+The default posture of this work is that PARENTS CAN AND SHOULD HANDLE MOST OF THESE CASES THEMSELVES. Parents under-file dramatically, largely because they assume they need a lawyer they can't afford. A pro se parent who can lay out the facts clearly does fine in most cases, and every reflexive "talk to a lawyer" quietly undercuts that.
+Do NOT reflexively suggest an attorney for garden-variety disputes: service frequency, duration, or amount; evaluation or IEE; classification or eligibility; implementation failures; procedural violations; transportation or related services for parentally-placed private students; most in-district placement disputes. For these, the honest framing is: there's little downside to filing — you don't pay to file, the district can't recover fees from you unless the case is frivolous, and the worst realistic outcome is that you don't get what you asked for and you're back where you started. Often the resolution session alone produces something, because the district would rather not litigate. Filing also makes the district take you seriously in a way informal conversation often doesn't.
+You CAN raise an attorney as one option worth considering in genuinely high-stakes situations: tuition reimbursement over ~$20K, expulsion or manifestation determination, the district already bringing a lawyer to the resolution session, or a complex multi-issue case at the hearing stage. Even then, "you can file first, see how the resolution session goes, and reassess from there" is usually the right framing.
 
-Once you set state to "complete" in a prior turn, the conversation CONTINUES in Q&A mode. The parent can ask questions; you answer. Topics you handle:
+LEGAL UNCERTAINTY
+When a question is genuinely unsettled (for example, transportation for parentally-placed private students), explain it honestly — what the rules say, what the district's likely position is, where the gray area sits. Don't default to "consult an attorney." Default to: "It's not a slam dunk, but you've got enough to push back. Filing puts pressure on the district to actually engage with the question. Worst case, they win on the merits and you're where you are now; best case, they decide it's not worth the fight and restore the service."
 
-- What filing actually involves procedurally
-- Timeline: 15 days from filing for resolution session, 30-day resolution period, hearing within ~45 days after if not resolved (~3 months filing to hearing in NY, often longer with extensions). Decision within 45 days of hearing.
-- Time commitment for parents
-- Mediation as a voluntary, free alternative
-- State complaint to NYSED — focused on procedural compliance, 60-day investigation
-- Pendency / stay-put
-- Documents to gather
-- Whether the case feels worth filing
+WHAT YOU KNOW (for when parents ask)
+- What filing actually involves, procedurally.
+- Timeline: roughly 15 days from filing to a resolution session, a 30-day resolution period, a hearing within ~45 days after that if it isn't resolved (~3 months from filing to hearing in NY, often longer with extensions); a decision within 45 days of the hearing.
+- The realistic time commitment for parents.
+- Mediation as a voluntary, free alternative.
+- A state complaint to NYSED — focused on procedural compliance, 60-day investigation.
+- Pendency / stay-put.
+- Which documents are worth gathering.
+- Whether a given situation feels worth filing.
+Answer what they asked, in plain English, using the child's name. Don't lecture.
 
-CRITICAL CALIBRATION ON ATTORNEY MENTIONS — read carefully
-
-The default posture of this product is that PARENTS CAN AND SHOULD HANDLE THESE CASES THEMSELVES. Parents under-file dramatically. The product exists because the legal-fees calculation makes attorneys impractical for most disputes. Every reflexive "consider a lawyer" line undermines the parent's confidence and runs against the product's core mission. A pro se parent who can clearly articulate facts to a hearing officer can do fine.
-
-DO NOT proactively recommend an attorney for these GARDEN-VARIETY cases:
-- Disputes over service frequency, duration, or amount (more speech, more OT, more reading support)
-- Disputes over evaluation or IEE
-- Classification or eligibility disputes
-- Implementation failures (services not being delivered)
-- Procedural violations (no PWN, missed timelines, etc.)
-- Transportation, equitable services, related services for parentally-placed private students
-- Most placement disputes within the public system
-
-For these, when the parent asks about legal questions or about going forward, your default posture is: "What's the harm in filing? You don't pay to file. The district can't recover fees from you unless the case is frivolous. The worst plausible outcome of filing is that you don't get what you asked for and you're back where you started — but in many cases the resolution session itself produces some kind of accommodation because the district doesn't want to litigate. Filing also makes the district take you seriously in a way that informal conversation often doesn't."
-
-You CAN mention attorneys for genuinely HIGH-STAKES situations:
-- Tuition reimbursement >$20K
-- Expulsion or manifestation determination
-- Cases where the district already has an attorney at the resolution session
-- Complex multi-issue cases at the hearing stage
-
-For these, frame attorney consultation as ONE OPTION worth considering at certain stages — not as a prerequisite to acting. Even here, "you can file first, see how the resolution session goes, and reassess from there" is usually the right framing.
-
-CRITICAL CALIBRATION ON LEGAL UNCERTAINTY
-
-When asked legal questions where the answer is genuinely unsettled (e.g., transportation for parentally-placed private students), explain the framework honestly — what the rules say, what the district's likely position is, what the gray area is. Do NOT default to "consult an attorney." Instead, default to: "It's not a slam dunk, but you have enough to push back. Filing puts pressure on the district to engage with the question. The worst case is they win on the merits and you're where you are now. The best case is they decide it's not worth fighting and they restore the service."
-
-Stay conversational. Plain English. Use the child's first name. Don't lecture. Don't dump everything you know; answer what they asked.
-
-In Q&A mode:
-- Keep state = "complete"
-- Don't change current_phase
-- intake_updates stays empty unless something genuinely new comes up
-- wait_check_just_surfaced stays "none" unless something genuinely new triggers
-- Just answer in chat_reply
+KEEPING TRACK QUIETLY
+As you talk, quietly keep an internal record of what you learn — it feeds the letters and documents you may produce later. Never announce this. Don't say "captured," "noting that," or "let me record that." Just remember it and use it. The schema is below; fill in only what you genuinely learn, and never re-ask something you already know.
 
 OUTPUT FORMAT — CRITICAL
-
 Every reply you produce MUST be a single valid JSON object and NOTHING ELSE.
+- The very first character of your response MUST be { and the very last character MUST be }.
+- NO prose before the JSON. NO prose after it. NO markdown code fences.
+- The chat_reply field IS what the parent sees — your full conversational message goes there, never before the JSON.
+- In chat_reply, use real line breaks between paragraphs — never write the literal two characters backslash then n.
 
-- The very first character of your response MUST be { (left curly brace).
-- The very last character of your response MUST be } (right curly brace).
-- NO prose before the JSON. NO prose after the JSON.
-- NO markdown code fences (no \`\`\`json or \`\`\`).
-- NO explanation of what you're about to say. The chat_reply field IS what the parent will see — put your conversational message there.
-- Inside string values, escape newlines as \\n and double quotes as \\".
-
-The JSON object structure:
-
+The JSON object:
 {
-  "chat_reply": "the message the parent sees — your full conversational response goes HERE, not before the JSON",
-  "current_phase": "child|issue|context|wrap",
+  "chat_reply": "the message the parent sees — your full conversational response goes HERE",
   "intake_updates": {
-    // only newly-learned fields. Omit anything not yet known. Schema below.
+    // only newly-learned fields. Omit anything not learned this turn. Schema below.
   },
-  "wait_check_just_surfaced": "ten_day_notice|statute_of_limitations|pendency|recent_cse|null",
-  "state": "continuing|ready_to_recap|thin_offer_guidance|complete"
+  "wait_check_just_surfaced": "ten_day_notice|statute_of_limitations|pendency|recent_cse|none",
+  "state": "continuing|thin_offer_guidance",
+  "parent_requested_assessment": true,
+  "outputs_to_generate": []
 }
 
-INTAKE SCHEMA — populate silently:
+INTAKE SCHEMA — populate silently as you learn:
 {
   "student_first_name": string,
   "student_age": number,
@@ -2404,7 +2338,7 @@ INTAKE SCHEMA — populate silently:
   "student_classification": string,
   "district_name": string,
   "is_nyc_doe": boolean,
-  "concerns_summary": string (running summary in parent's voice),
+  "concerns_summary": string (running summary in the parent's voice),
   "concern_tags": [from: "not_making_progress","services_not_happening","wrong_amount_of_services","wrong_kind_of_program","evaluation_problem","placement_problem","behavior_or_discipline","communication_problem","considering_private","transition_problem"],
   "child_making_progress": "yes|no|some|unsure",
   "services_actually_happening": "yes|partial|no|unsure",
@@ -2416,9 +2350,7 @@ INTAKE SCHEMA — populate silently:
   "evidence_available": [from: "current_iep","prior_ieps","private_evaluation","district_evaluation","progress_reports","report_cards","emails","pwn","meeting_notes","provider_letters","medical"]
 }
 
-The running intake state will be appended to your system prompt. Use it. Don't re-ask things you already know.
-
-DO NOT tell the parent about phases, claim categories, or output format. Don't recommend a lawyer in chat. Don't predict outcomes. Don't invent facts.`;
+The running record will be appended to this prompt under INTAKE STATE SO FAR. Use it. Don't re-ask what you already know. Don't tell the parent about claim categories, output IDs, or this JSON format. Don't predict outcomes. Don't invent facts.`;
 
 // ============================================================================
 // OUTPUT LIBRARY — catalog of lighter and full outputs the assistant can produce
@@ -2686,6 +2618,20 @@ Return ONLY a JSON object (no fences):
   ]
 }`;
 
+// ============================================================================
+// PRESERVED — QUICK-ASSESSMENT PIPELINE (intentionally NOT wired into the chat)
+// ----------------------------------------------------------------------------
+// IEP_EXTRACT_PROMPT, IEP_FLAG_PROMPT (below), and the IEPSection component +
+// processIEP handler (further down) implement the one-shot structured IEP
+// assessment (Stage A extract -> Stage B flag -> "What I'd look at" panel).
+// As of the chat-as-primary change this is deliberately disconnected from the
+// chat / "Let's get started" flow — uploads now feed extracted text to the
+// chat instead (see handleAttach / formatDocsForPrompt). It is kept intact and
+// isolated for a planned second entry point ("Quick IEP assessment"). See
+// CLAUDE.md. DO NOT delete or refactor as dead code.
+//
+// (Note: the PDF helpers extractPdfText / pdfQualityBlocker are SHARED with the
+// live chat attach flow — they are not preserved-only.)
 // ============================================================================
 // IEP EXTRACTION PROMPT — Stage A: pull structured data out of the IEP
 // ============================================================================
@@ -2995,12 +2941,7 @@ const RESPONSE_TOOL = {
       chat_reply: {
         type: "string",
         description:
-          "The message the parent sees in the chat thread. Your conversational response. Plain text. Use \\n for paragraph breaks.",
-      },
-      current_phase: {
-        type: "string",
-        enum: ["child", "issue", "context", "wrap"],
-        description: "Which conversation phase you are in.",
+          "The message the parent sees in the chat thread. Your conversational response. Plain text. Use ordinary line breaks for paragraphs.",
       },
       intake_updates: {
         type: "object",
@@ -3042,7 +2983,7 @@ const RESPONSE_TOOL = {
       },
       state: {
         type: "string",
-        enum: ["continuing", "ready_to_recap", "thin_offer_guidance", "complete"],
+        enum: ["continuing", "thin_offer_guidance"],
       },
       parent_requested_assessment: {
         type: "boolean",
@@ -3070,7 +3011,7 @@ const RESPONSE_TOOL = {
         },
       },
     },
-    required: ["chat_reply", "current_phase", "state"],
+    required: ["chat_reply", "state"],
   },
 };
 
@@ -3082,6 +3023,17 @@ const RESPONSE_TOOL = {
 // when the model honors tool_choice), falls back to parsing JSON from text
 // blocks if the model returns text instead. This handles environments where
 // tool_choice forcing isn't fully supported.
+// Models sometimes emit the literal characters backslash-n inside chat_reply
+// (the prompt no longer asks them to escape newlines, and tool_use input
+// arrives already-parsed so nothing un-escapes it). Convert any leftover
+// literal sequences back to real newlines so the renderer shows paragraphs.
+function normalizeReply(parsed) {
+  if (parsed && typeof parsed.chat_reply === "string") {
+    parsed.chat_reply = parsed.chat_reply.replace(/\\n/g, "\n");
+  }
+  return parsed;
+}
+
 async function callClaude(messages, dynamicSystem) {
   const apiMessages = messages.map((m) => ({ role: m.role, content: m.content }));
   const response = await fetch(API_URL, {
@@ -3107,7 +3059,7 @@ async function callClaude(messages, dynamicSystem) {
     (b) => b.type === "tool_use" && b.name === "respond_to_parent"
   );
   if (toolUse && toolUse.input) {
-    return toolUse.input;
+    return normalizeReply(toolUse.input);
   }
 
   // Path 2: model returned text — try to parse JSON out of it
@@ -3117,7 +3069,7 @@ async function callClaude(messages, dynamicSystem) {
     .join("\n");
   if (text && text.trim()) {
     try {
-      return parseJSON(text);
+      return normalizeReply(parseJSON(text));
     } catch (e) {
       // Graceful degradation: model returned plain conversational text without
       // structured output. Use the text as chat_reply so the conversation flows;
@@ -3125,7 +3077,6 @@ async function callClaude(messages, dynamicSystem) {
       // catches up.
       return {
         chat_reply: text.trim(),
-        current_phase: null,
         intake_updates: {},
         wait_check_just_surfaced: "none",
         state: "continuing",
@@ -3454,44 +3405,6 @@ function describePageList(pages) {
   return "page" + (sorted.length === 1 ? " " : "s ") + ranges.join(", ");
 }
 
-// Calls Claude with a PDF as a document block plus a system prompt and a text
-// instruction. Used for IEP extraction. Returns parsed JSON.
-// Defaults to FAST_MODEL (Haiku) and a tighter token budget to stay under the
-// 26s function limit; the slimmer extraction schema needs far fewer tokens.
-async function callClaudeWithPDF(systemPrompt, pdfBase64, instruction, maxTokens = 2000, model = FAST_MODEL) {
-  const response = await fetch(API_URL, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      model: model,
-      max_tokens: maxTokens,
-      system: systemPrompt,
-      messages: [
-        {
-          role: "user",
-          content: [
-            {
-              type: "document",
-              source: { type: "base64", media_type: "application/pdf", data: pdfBase64 },
-            },
-            { type: "text", text: instruction },
-          ],
-        },
-      ],
-    }),
-  });
-  if (!response.ok) {
-    const err = await response.text();
-    throw new Error(`API ${response.status}: ${err.slice(0, 200)}`);
-  }
-  const data = await response.json();
-  const text = data.content
-    .filter((b) => b.type === "text")
-    .map((b) => b.text)
-    .join("\n");
-  return parseJSON(text);
-}
-
 // Walk the text tracking string state and brace depth to find a complete,
 // balanced JSON object. Much more robust than first-{ to last-} slicing.
 function extractBalancedJSON(text) {
@@ -3553,6 +3466,33 @@ function mergeIntake(current, updates) {
     }
   }
   return merged;
+}
+
+// Render attached documents into the block we append to the chat system prompt.
+// Applies the per-document and total character caps; when a document is cut, it
+// gets a marker the model is told to act on (ask the parent to point at the
+// missing section). Returns "" when there are no documents.
+function formatDocsForPrompt(docs) {
+  if (!docs || docs.length === 0) return "";
+  let total = 0;
+  const blocks = docs.map((d) => {
+    let text = d.text || "";
+    let truncated = false;
+    if (text.length > DOC_CHAR_CAP) {
+      text = text.slice(0, DOC_CHAR_CAP);
+      truncated = true;
+    }
+    if (total + text.length > DOC_TOTAL_CHAR_CAP) {
+      text = text.slice(0, Math.max(0, DOC_TOTAL_CHAR_CAP - total));
+      truncated = true;
+    }
+    total += text.length;
+    const marker = truncated
+      ? " [truncated — tell the parent you've read most of it and ask them to point you to a specific section if you need more]"
+      : "";
+    return `Document: ${d.name}${marker}\n${text}`;
+  });
+  return blocks.join("\n\n");
 }
 
 // ============================================================================
@@ -4628,88 +4568,6 @@ h1 em { font-style: italic; color: var(--accent); }
 // COMPONENTS
 // ============================================================================
 
-const PHASE_ORDER = ["child", "issue", "context", "wrap"];
-const PHASE_LABELS = {
-  child: "About child",
-  issue: "What's going on",
-  context: "Where things stand",
-  wrap: "Wrapping up",
-};
-
-function PhaseBar({ phase }) {
-  const idx = PHASE_ORDER.indexOf(phase);
-  return (
-    <>
-      <div className="phase-bar">
-        {PHASE_ORDER.map((p, i) => {
-          let cls = "phase-seg";
-          if (i < idx) cls += " done";
-          else if (i === idx) cls += " active";
-          return <div key={p} className={cls} />;
-        })}
-      </div>
-      <div className="phase-labels">
-        {PHASE_ORDER.map((p, i) => {
-          let cls = "phase-label";
-          if (i < idx) cls += " done";
-          else if (i === idx) cls += " active";
-          return (
-            <span key={p} className={cls}>
-              {PHASE_LABELS[p]}
-            </span>
-          );
-        })}
-      </div>
-    </>
-  );
-}
-
-function CapturedIntake({ intake }) {
-  const [open, setOpen] = useState(false);
-  const keys = Object.keys(intake).filter((k) => {
-    const v = intake[k];
-    if (v === null || v === undefined) return false;
-    if (Array.isArray(v) && v.length === 0) return false;
-    if (typeof v === "string" && v.trim() === "") return false;
-    return true;
-  });
-
-  const formatVal = (v) => {
-    if (Array.isArray(v)) return v.join(", ");
-    if (typeof v === "boolean") return v ? "yes" : "no";
-    return String(v);
-  };
-
-  return (
-    <div className="intake-panel">
-      <div className="intake-head" onClick={() => setOpen((o) => !o)}>
-        <span className="intake-title">
-          Structured intake captured silently
-        </span>
-        <span className="intake-count">
-          {keys.length} field{keys.length === 1 ? "" : "s"} · {open ? "hide" : "show"}
-        </span>
-      </div>
-      {open && (
-        <div className="intake-body">
-          {keys.length === 0 ? (
-            <p className="intake-empty">
-              Nothing captured yet — start the conversation above.
-            </p>
-          ) : (
-            keys.map((k) => (
-              <div key={k} className="intake-row">
-                <span className="intake-key">{k}:</span>
-                <span className="intake-val">{formatVal(intake[k])}</span>
-              </div>
-            ))
-          )}
-        </div>
-      )}
-    </div>
-  );
-}
-
 function TriageSection({ result, loading }) {
   if (loading) {
     return (
@@ -5326,6 +5184,9 @@ function Checklist({ data, checked, onToggle, loading }) {
 
 // ============================================================================
 // IEP UPLOAD + REVIEW
+// PRESERVED — part of the quick-assessment pipeline; intentionally NOT mounted
+// in the chat flow as of chat-as-primary. Reserved for a future "Quick IEP
+// assessment" entry point. See CLAUDE.md. Do not delete as dead code.
 // ============================================================================
 
 function IEPSection({
@@ -5523,7 +5384,7 @@ function IEPSection({
 // ============================================================================
 
 const OPENING =
-  "Hi. I'm here to help you figure out whether your child's situation supports a due process complaint, and if it does, to help draft one.\n\nNo form to fill out. We can save the formal details — full name, address, school district, and so on — for later if it makes sense to move forward. For now, I just need enough to assess whether there's a viable claim here.\n\nCan you tell me your child's first name, age, and what grade they're in?";
+  "Hi. I'm here to help you make sense of what's going on with your child's special education — what their documents actually say, where the district may be falling short, and what you can do about it, whether that's pushing back, getting something in writing, or filing if it comes to that.\n\nNo form to fill out. Just tell me what's going on in your own words, and if you've got a document like the IEP, you can attach it any time and I'll take a look.\n\nTo start — what's your child's first name, and what's been worrying you?";
 
 // Render a message string with real paragraph and line breaks. Splits on blank
 // lines into <p> paragraphs, converts single newlines to <br>, and renders
@@ -5565,7 +5426,6 @@ function ChatTool() {
     { role: "assistant", content: OPENING },
   ]);
   const [intake, setIntake] = useState({});
-  const [phase, setPhase] = useState("child");
   const [chatState, setChatState] = useState("continuing");
   const [waitChecks, setWaitChecks] = useState([]);
   const [input, setInput] = useState("");
@@ -5598,6 +5458,14 @@ function ChatTool() {
   const [iepError, setIepError] = useState(null);
   const [iepFlagAnswers, setIepFlagAnswers] = useState({}); // { flagIndex: "answer text" }
   const [iepUploadVisible, setIepUploadVisible] = useState(false);
+
+  // Documents the parent has attached in the chat. Each is { name, text } where
+  // text is the browser-extracted PDF text. This feeds the chat's system prompt
+  // every turn (see processCall) so the assistant can reference the documents
+  // naturally. Distinct from the preserved IEP-assessment pipeline (iep* state).
+  const [uploadedDocs, setUploadedDocs] = useState([]);
+  const [attachError, setAttachError] = useState(null);
+  const [attaching, setAttaching] = useState(false);
 
   // Triage stage
   const [triageResult, setTriageResult] = useState(null);
@@ -5632,6 +5500,7 @@ function ChatTool() {
   const threadRef = useRef();
   const inputRef = useRef();
   const outputsScrollRef = useRef();
+  const attachRef = useRef();
 
   // Load saved state from window.storage on mount.
   useEffect(() => {
@@ -5644,7 +5513,6 @@ function ChatTool() {
             const saved = JSON.parse(result.value);
             if (saved.messages && saved.messages.length > 0) setMessages(saved.messages);
             if (saved.intake) setIntake(saved.intake);
-            if (saved.phase) setPhase(saved.phase);
             if (saved.chatState) setChatState(saved.chatState);
             if (saved.waitChecks) {
               // Filter out any invalid wait-check values left over from earlier
@@ -5662,6 +5530,7 @@ function ChatTool() {
             if (saved.iepExtraction) setIepExtraction(saved.iepExtraction);
             if (saved.iepFlags) setIepFlags(saved.iepFlags);
             if (saved.iepFlagAnswers) setIepFlagAnswers(saved.iepFlagAnswers);
+            if (saved.uploadedDocs) setUploadedDocs(saved.uploadedDocs);
             if (saved.triageResult) setTriageResult(saved.triageResult);
             if (saved.drafterFormOpen) setDrafterFormOpen(saved.drafterFormOpen);
             if (saved.drafterForm) setDrafterForm((d) => ({ ...d, ...saved.drafterForm }));
@@ -5689,11 +5558,12 @@ function ChatTool() {
           await window.storage.set(
             STORAGE_KEY,
             JSON.stringify({
-              messages, intake, phase, chatState, waitChecks, checklist, checkedItems,
+              messages, intake, chatState, waitChecks, checklist, checkedItems,
               triageResult, drafterFormOpen, drafterForm, draft, draftChangelog, draftEdited, reviewChecks,
               assessmentRequested,
               outputsRequested, outputs, letterFields, letterFieldsCollected,
               iepFileName, iepExtraction, iepFlags, iepFlagAnswers,
+              uploadedDocs,
             })
           );
         }
@@ -5701,7 +5571,7 @@ function ChatTool() {
         // Save failed — silent
       }
     })();
-  }, [loaded, messages, intake, phase, chatState, waitChecks, checklist, checkedItems, triageResult, drafterFormOpen, drafterForm, draft, draftChangelog, draftEdited, reviewChecks, assessmentRequested, outputsRequested, outputs, letterFields, letterFieldsCollected, iepFileName, iepExtraction, iepFlags, iepFlagAnswers]);
+  }, [loaded, messages, intake, chatState, waitChecks, checklist, checkedItems, triageResult, drafterFormOpen, drafterForm, draft, draftChangelog, draftEdited, reviewChecks, assessmentRequested, outputsRequested, outputs, letterFields, letterFieldsCollected, iepFileName, iepExtraction, iepFlags, iepFlagAnswers, uploadedDocs]);
 
   // Note: the personalized document checklist is now generated as part of the
   // outputs library (id "document_checklist") when the parent requests it,
@@ -5859,6 +5729,11 @@ function ChatTool() {
 
   // ============================================================================
   // IEP UPLOAD PROCESSING
+  // PRESERVED — Stage A + Stage B structured assessment. As of chat-as-primary
+  // this is intentionally not called from the chat flow (no UI mounts it).
+  // Reserved for a future "Quick IEP assessment" entry point. See CLAUDE.md.
+  // processIEP, submitIepAnswers, and clearIEP below all belong to this
+  // preserved pipeline. Do not delete as dead code.
   // ============================================================================
 
   const processIEP = async (file) => {
@@ -6107,11 +5982,18 @@ function ChatTool() {
 
   // Run a Claude call against the given message history and update state with the result.
   // Used by both send() (for new messages) and retryLast() (for retrying after an error).
-  const processCall = async (msgs) => {
-    const baseSystem =
-      CHAT_INTAKE_PROMPT +
+  const processCall = async (msgs, docsOverride = null) => {
+    // docsOverride lets a freshly-attached document reach this turn's prompt
+    // without waiting for the uploadedDocs state update to flush.
+    const docs = docsOverride || uploadedDocs;
+    let baseSystem =
+      CHAT_ADVOCATE_PROMPT +
       "\n\n--- INTAKE STATE SO FAR ---\n" +
       JSON.stringify(intake, null, 2);
+    const docsBlock = formatDocsForPrompt(docs);
+    if (docsBlock) {
+      baseSystem += "\n\n--- UPLOADED DOCUMENTS ---\n" + docsBlock;
+    }
 
     let parsed;
     try {
@@ -6123,7 +6005,6 @@ function ChatTool() {
 
     const updatedIntake = mergeIntake(intake, parsed.intake_updates || {});
     setIntake(updatedIntake);
-    if (parsed.current_phase) setPhase(parsed.current_phase);
     setChatState(parsed.state || "continuing");
 
     // Once the parent requests the assessment, latch it on permanently.
@@ -6156,6 +6037,65 @@ function ChatTool() {
         waitCheck: validWaitCheck,
       },
     ]);
+  };
+
+  // Parent attaches a document in the chat. We extract the text in the browser
+  // (same PDF.js path the preserved IEP pipeline uses) and add it to
+  // uploadedDocs, then send a short user turn so the assistant acknowledges it.
+  // We do NOT run the structured IEP assessment here — that pipeline is reserved
+  // for a separate future entry point.
+  const handleAttach = async (file) => {
+    if (!file || loading || attaching) return;
+    setAttachError(null);
+    if (file.type !== "application/pdf" && !file.name.toLowerCase().endsWith(".pdf")) {
+      setAttachError("Please attach a PDF file.");
+      return;
+    }
+    if (file.size > MAX_PDF_BYTES) {
+      const limitMB = (MAX_PDF_BYTES / (1024 * 1024)).toFixed(1);
+      setAttachError(`That PDF is too large (limit ${limitMB}MB). Free tools like ilovepdf.com can shrink it.`);
+      return;
+    }
+    setAttaching(true);
+    try {
+      const extractionResult = await extractPdfText(file);
+      const { text, hadTextLayer } = extractionResult;
+      if (!hadTextLayer) {
+        setAttachError(
+          "That looks like a scanned or photographed PDF — there's no readable text in it, just images. Type the key details into the chat instead and I'll work from that."
+        );
+        return;
+      }
+      const blocker = pdfQualityBlocker(extractionResult);
+      if (blocker) {
+        setAttachError(blocker);
+        return;
+      }
+      const newDocs = [...uploadedDocs, { name: file.name, text }];
+      setUploadedDocs(newDocs);
+
+      const newMsgs = [...messages, { role: "user", content: `I've attached a document: ${file.name}` }];
+      setMessages(newMsgs);
+      setLoading(true);
+      try {
+        await processCall(newMsgs, newDocs);
+      } catch (e) {
+        setError(
+          (e.message || "Couldn't reach the assistant.") +
+            " — Click retry below or send a new message."
+        );
+        setLastFailedMessage(newMsgs[newMsgs.length - 1].content);
+      } finally {
+        setLoading(false);
+      }
+    } catch (e) {
+      const msg = (e && e.message) || "unknown error";
+      setAttachError(
+        e && e.userFacing ? msg : "Couldn't read that PDF — " + msg + ". Try a different file or type the details into the chat."
+      );
+    } finally {
+      setAttaching(false);
+    }
   };
 
   const send = async (textOverride = null) => {
@@ -6200,7 +6140,6 @@ function ChatTool() {
     }
   };
 
-  const affirmRecap = () => send("Yes, that all looks right.");
   const continueChat = () => {
     setChatState("continuing");
     inputRef.current?.focus();
@@ -6213,7 +6152,6 @@ function ChatTool() {
     // before the storage delete completes.
     setMessages([{ role: "assistant", content: OPENING }]);
     setIntake({});
-    setPhase("child");
     setChatState("continuing");
     setWaitChecks([]);
     setError(null);
@@ -6245,6 +6183,9 @@ function ChatTool() {
     setIepError(null);
     setIepProcessing(null);
     setIepUploadVisible(false);
+    setUploadedDocs([]);
+    setAttachError(null);
+    setAttaching(false);
     outputsScrolledRef.current = false;
 
     // Clear all saved state across both storage backends and any key version.
@@ -6290,7 +6231,7 @@ function ChatTool() {
       <div className="shell">
         <div className="head">
           <div className="brand" style={{ fontFamily: "Fraunces, serif", fontSize: 16, fontWeight: 500, color: "var(--ink-muted)" }}>
-            Guided intake
+            Conversation
           </div>
           <button
             onClick={reset}
@@ -6316,12 +6257,10 @@ function ChatTool() {
           Tell me what's <em>going on</em>.
         </h1>
         <p className="lede">
-          Describe your situation in your own words. I'll ask questions, flag
-          anything time-sensitive right away, and put together documents you
-          can use when I have enough.
+          Describe your situation in your own words. I'll help you make sense of
+          it, flag anything time-sensitive right away, and put together letters or
+          documents when they'd help. Attach the IEP or any document any time.
         </p>
-
-        <PhaseBar phase={phase} />
 
         <div className="thread" ref={threadRef}>
           {messages.map((m, i) => (
@@ -6367,18 +6306,6 @@ function ChatTool() {
           </div>
         )}
 
-        {chatState === "ready_to_recap" && (
-          <div className="affirm">
-            <p>Does that summary look right? Or keep typing below if there's more.</p>
-            <button className="btn btn-primary" onClick={affirmRecap}>
-              Yes, that's right
-            </button>
-            <button className="btn btn-ghost" onClick={continueChat}>
-              No, let me add something
-            </button>
-          </div>
-        )}
-
         {chatState === "thin_offer_guidance" && (
           <div className="thin">
             <h3>Worth gathering more information first</h3>
@@ -6395,7 +6322,55 @@ function ChatTool() {
           </div>
         )}
 
+        {uploadedDocs.length > 0 && (
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 6, margin: "0 0 8px" }}>
+            {uploadedDocs.map((d, i) => (
+              <span
+                key={i}
+                style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12.5, color: "var(--ink-muted)", background: "var(--surface-2)", borderRadius: 6, padding: "3px 8px" }}
+              >
+                📎 {d.name}
+                <a
+                  href="#"
+                  onClick={(e) => { e.preventDefault(); setUploadedDocs((docs) => docs.filter((_, j) => j !== i)); }}
+                  style={{ color: "var(--ink-soft)", textDecoration: "none", fontWeight: 600 }}
+                  title="Remove this document"
+                >
+                  ×
+                </a>
+              </span>
+            ))}
+          </div>
+        )}
+
+        {attachError && (
+          <div className="error" style={{ marginBottom: 8 }}>{attachError}</div>
+        )}
+
         <div className="composer">
+            <input
+              ref={attachRef}
+              type="file"
+              accept="application/pdf,.pdf"
+              style={{ display: "none" }}
+              onChange={(e) => { handleAttach(e.target.files?.[0]); e.target.value = ""; }}
+            />
+            <button
+              className="send"
+              onClick={() => attachRef.current?.click()}
+              disabled={loading || attaching}
+              aria-label="Attach a document"
+              title="Attach a PDF (IEP, evaluation, notice, anything)"
+              style={{ background: "transparent", color: "var(--ink-soft)" }}
+            >
+              {attaching ? (
+                <span className="spinner" style={{ width: 14, height: 14, borderWidth: 2 }} />
+              ) : (
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" />
+                </svg>
+              )}
+            </button>
             <textarea
               ref={inputRef}
               value={input}
@@ -6407,11 +6382,7 @@ function ChatTool() {
                 }
               }}
               placeholder={
-                loading
-                  ? "Thinking..."
-                  : chatState === "complete"
-                  ? "Ask a question about filing, timing, or alternatives..."
-                  : "Type your message... (Enter to send)"
+                loading ? "Thinking..." : "Type your message... (Enter to send)"
               }
               rows={1}
               disabled={loading}
@@ -6507,43 +6478,12 @@ function ChatTool() {
           />
         )}
 
-        <CapturedIntake intake={intake} />
-
-        {!iepUploadVisible && !iepFlags && (
-          <div style={{ marginTop: 14 }}>
-            <button
-              className="btn btn-secondary"
-              onClick={() => setIepUploadVisible(true)}
-              style={{ fontSize: 14 }}
-            >
-              📄 Upload {intake.student_first_name ? intake.student_first_name + "'s" : "your child's"} IEP for review
-            </button>
-          </div>
-        )}
-
-        {!iepUploadVisible && iepFlags && (
-          <div style={{ marginTop: 14, padding: "10px 14px", background: "var(--accent-soft)", borderRadius: 6, fontSize: 13.5, color: "var(--ink-muted)" }}>
-            ✓ IEP reviewed{iepFileName ? ` (${iepFileName})` : ""} — {iepFlags?.flags?.length || 0} item{iepFlags?.flags?.length === 1 ? "" : "s"} flagged.{" "}
-            <a href="#" onClick={(e) => { e.preventDefault(); setIepUploadVisible(true); }} style={{ color: "var(--accent)" }}>View again</a>
-          </div>
-        )}
-
-        {iepUploadVisible && (
-          <IEPSection
-            fileName={iepFileName}
-            extraction={iepExtraction}
-            flags={iepFlags}
-            flagAnswers={iepFlagAnswers}
-            setFlagAnswers={setIepFlagAnswers}
-            processing={iepProcessing}
-            error={iepError}
-            onUpload={processIEP}
-            onClear={clearIEP}
-            onSubmitAnswers={submitIepAnswers}
-            onClose={() => setIepUploadVisible(false)}
-            childFirstName={intake.student_first_name}
-          />
-        )}
+        {/* The IEP structured-assessment UI (upload button → IEPSection →
+            "What I'd look at" panel) was intentionally disconnected here. The
+            chat now takes documents through the generic attach affordance in
+            the composer above. The assessment pipeline (processIEP, IEPSection,
+            IEP_EXTRACT_PROMPT, IEP_FLAG_PROMPT) is PRESERVED for a future
+            "Quick IEP assessment" entry point — see CLAUDE.md. Do not delete. */}
 
         {waitChecks.filter((w) => VALID_WAIT_CHECKS.includes(w)).length > 0 && (
           <div style={{ marginTop: 12, fontSize: 12, color: "var(--ink-soft)" }}>
@@ -6558,9 +6498,9 @@ function ChatTool() {
         )}
 
         <div className="disclaimer">
-          Demo of the chat intake stage only. The full app continues from here
-          to triage analysis, IEP review, and complaint drafting. This tool is
-          not legal advice.
+          This is a conversational guide, not a lawyer, and nothing here is legal
+          advice. Attach documents and ask questions; I'll help you think it
+          through and prepare what you need.
         </div>
       </div>
     </>
