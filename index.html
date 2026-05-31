@@ -2828,6 +2828,12 @@ Return ONLY a JSON object:
 }`;
 
 // ============================================================================
+// PRESERVED — TRIAGE PROMPT (the "What we're seeing" verdict). As of
+// clean-output-handoff this is NOT run from the chat flow (the chat handles
+// claim recognition conversationally). Reserved, with the TriageSection
+// component, for the future "Quick IEP assessment" entry point. See CLAUDE.md.
+// Do not delete as dead code.
+// ============================================================================
 // TRIAGE PROMPT — formal claim category analysis from captured intake
 // ============================================================================
 
@@ -4621,6 +4627,9 @@ h1 em { font-style: italic; color: var(--accent); }
 // COMPONENTS
 // ============================================================================
 
+// PRESERVED — the "What we're seeing" verdict panel. Not mounted in the chat
+// flow as of clean-output-handoff; reserved with TRIAGE_PROMPT for the future
+// "Quick IEP assessment" entry point. See CLAUDE.md. Do not delete as dead code.
 function TriageSection({ result, loading }) {
   if (loading) {
     return (
@@ -5665,29 +5674,13 @@ function ChatTool() {
   // outputs library (id "document_checklist") when the parent requests it,
   // not auto-generated on intake completion.
 
-  // Auto-run triage analysis when parent has explicitly requested the assessment.
-  useEffect(() => {
-    if (!loaded) return;
-    if (!assessmentRequested) return;
-    if (triageResult || triageLoading) return;
-
-    (async () => {
-      setTriageLoading(true);
-      try {
-        const result = await callClaudeForJSON(
-          TRIAGE_PROMPT,
-          "Analyze this captured intake and identify the colorable claim categories.\n\nINTAKE:\n" +
-            JSON.stringify(intake, null, 2)
-        );
-        setTriageResult(result);
-      } catch (e) {
-        // Silent fail; the user can still proceed
-      } finally {
-        setTriageLoading(false);
-      }
-    })();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [assessmentRequested, loaded]);
+  // The auto-run triage analysis (TRIAGE_PROMPT -> "What we're seeing" verdict)
+  // was removed here: under chat-as-primary the chat handles claim recognition
+  // conversationally, so an unsolicited structured verdict is exactly the
+  // pattern we removed from the upload flow. TRIAGE_PROMPT and the TriageSection
+  // component are PRESERVED (banner-commented) for the future "Quick IEP
+  // assessment" entry point, which will run triage and mount it itself.
+  // triageResult/triageLoading state is kept (the preserved processIEP reads it).
 
   // Scroll to the outputs panel the FIRST time outputs appear, so the parent
   // doesn't have to hunt for them after the chat says "you'll see below."
@@ -6524,10 +6517,9 @@ function ChatTool() {
           </div>
         )}
 
-        {/* TRIAGE — supporting context, below outputs */}
-        {assessmentRequested && (
-          <TriageSection result={triageResult} loading={triageLoading} />
-        )}
+        {/* The "What we're seeing" triage verdict (TriageSection) was removed from
+            the chat flow — the chat does this conversationally now. The component
+            is preserved for the future "Quick IEP assessment" entry point. */}
 
         {/* FULL COMPLAINT FLOW — triggered when full_complaint is requested */}
         {assessmentRequested && outputsRequested.includes("full_complaint") && !drafterFormOpen && !draft && !drafting && (

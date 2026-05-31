@@ -27,22 +27,34 @@ against rather than trimming blind now.
 
 ### Preserved: the quick-assessment pipeline (NOT dead code)
 
-`IEP_EXTRACT_PROMPT`, `IEP_FLAG_PROMPT`, the `IEPSection` component, and
-the `processIEP` / `submitIepAnswers` / `clearIEP` handlers implement a
-one-shot **structured IEP assessment** (Stage A extract → Stage B flag →
-the "What I'd look at" panel). As of the `chat-as-primary` change this
-pipeline is **intentionally disconnected** from the chat flow — no UI
-mounts it. It is kept intact and isolated, behind banner comments in
-`index.html`, for a planned **second landing-page entry point** ("Want a
-quick IEP assessment?"): a transactional flow where the parent describes
-the situation, uploads documents, receives the structured assessment in
-one shot, and is then offered the chat for follow-up. That future flow
-reuses this code.
+Three things are preserved here, all reserved for the same future entry
+point:
+
+1. **The IEP extraction/flagging pipeline** — `IEP_EXTRACT_PROMPT`,
+   `IEP_FLAG_PROMPT`, the `IEPSection` component, and the `processIEP` /
+   `submitIepAnswers` / `clearIEP` handlers — a one-shot **structured IEP
+   assessment** (Stage A extract → Stage B flag → the "What I'd look at"
+   panel). Disconnected from the chat flow as of `chat-as-primary`.
+2. **The triage verdict** — `TRIAGE_PROMPT` and the `TriageSection`
+   component (the "What we're seeing / Yes — this is worth filing"
+   panel). Its chat-flow auto-run effect and mount were removed in
+   `clean-output-handoff` because the chat now does claim recognition
+   conversationally; an unsolicited structured verdict is the same
+   pattern we removed from the upload flow.
+
+All of the above are kept intact behind banner comments in `index.html`,
+reserved for a planned **second landing-page entry point** ("Want a quick
+IEP assessment?"): a transactional flow where the parent describes the
+situation, uploads documents, receives the structured assessment +
+triage verdict in one shot, and is then offered the chat for follow-up.
+That future flow reuses this code and will run triage and mount
+`TriageSection` itself.
 
 **Do not delete or refactor these as unused.** They are unreferenced by
 design, awaiting re-wiring to the new entry point. (The PDF helpers
 `extractPdfText` / `pdfQualityBlocker` are *shared* with the live chat
-attach flow, so those are not preserved-only.)
+attach flow, so those are not preserved-only. `triageResult` /
+`triageLoading` state is also kept — the preserved `processIEP` reads it.)
 
 ## Future / planned features
 
