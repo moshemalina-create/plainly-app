@@ -2983,7 +2983,7 @@ const RESPONSE_TOOL = {
       },
       state: {
         type: "string",
-        enum: ["continuing", "ready_to_recap", "thin_offer_guidance", "complete"],
+        enum: ["continuing", "thin_offer_guidance"],
       },
       parent_requested_assessment: {
         type: "boolean",
@@ -6140,7 +6140,6 @@ function ChatTool() {
     }
   };
 
-  const affirmRecap = () => send("Yes, that all looks right.");
   const continueChat = () => {
     setChatState("continuing");
     inputRef.current?.focus();
@@ -6307,18 +6306,6 @@ function ChatTool() {
           </div>
         )}
 
-        {chatState === "ready_to_recap" && (
-          <div className="affirm">
-            <p>Does that summary look right? Or keep typing below if there's more.</p>
-            <button className="btn btn-primary" onClick={affirmRecap}>
-              Yes, that's right
-            </button>
-            <button className="btn btn-ghost" onClick={continueChat}>
-              No, let me add something
-            </button>
-          </div>
-        )}
-
         {chatState === "thin_offer_guidance" && (
           <div className="thin">
             <h3>Worth gathering more information first</h3>
@@ -6395,11 +6382,7 @@ function ChatTool() {
                 }
               }}
               placeholder={
-                loading
-                  ? "Thinking..."
-                  : chatState === "complete"
-                  ? "Ask a question about filing, timing, or alternatives..."
-                  : "Type your message... (Enter to send)"
+                loading ? "Thinking..." : "Type your message... (Enter to send)"
               }
               rows={1}
               disabled={loading}
