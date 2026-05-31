@@ -5034,8 +5034,26 @@ function OutputCard({ id, def, content, loading, onRegenerate }) {
 
           {!loading && !isError && content && (
             <>
-              {(isLetter || isSummary) && (
+              {(isLetter || isSummary) && (() => {
+                const missing = extractPlaceholderLabels(currentText);
+                return (
                 <>
+                  {missing.length > 0 && !editing && (
+                    <div
+                      style={{
+                        background: "#FFF7D6",
+                        border: "1px solid #EBD98A",
+                        borderRadius: 8,
+                        padding: "10px 12px",
+                        marginBottom: 12,
+                        fontSize: 13.5,
+                        color: "var(--ink)",
+                      }}
+                    >
+                      <strong style={{ fontWeight: 500 }}>You still need to fill in:</strong>{" "}
+                      {missing.join(", ")}. They're highlighted below — click Edit to type them in.
+                    </div>
+                  )}
                   {editing ? (
                     <div className="output-letter">
                       <textarea
@@ -5046,7 +5064,7 @@ function OutputCard({ id, def, content, loading, onRegenerate }) {
                     </div>
                   ) : (
                     <div className={isLetter ? "output-letter" : "output-summary"}>
-                      {currentText}
+                      {renderWithPlaceholders(currentText, "oc" + id)}
                     </div>
                   )}
                   <div className="output-actions">
@@ -5067,7 +5085,8 @@ function OutputCard({ id, def, content, loading, onRegenerate }) {
                     </button>
                   </div>
                 </>
-              )}
+                );
+              })()}
 
               {isChecklist && content.groups && (
                 <>
@@ -5435,6 +5454,38 @@ function renderInlineBold(text, keyPrefix) {
     }
     return part;
   });
+}
+
+const PLACEHOLDER_RE = /\[PARENT TO ADD:[^\]]*\]/g;
+
+// Render document text with [PARENT TO ADD: …] placeholders loudly highlighted
+// so a parent can't miss the spots they need to fill in. Read-mode only — the
+// edit textarea shows raw text. Whitespace/newlines are preserved by the
+// container's CSS (white-space), so we render inline spans here.
+function renderWithPlaceholders(text, keyPrefix) {
+  const parts = String(text).split(/(\[PARENT TO ADD:[^\]]*\])/g);
+  return parts.map((part, i) =>
+    /^\[PARENT TO ADD:[^\]]*\]$/.test(part) ? (
+      <mark
+        key={keyPrefix + "-ph" + i}
+        style={{ background: "#FCE96A", color: "var(--ink)", padding: "0 3px", borderRadius: 2, fontWeight: 500 }}
+      >
+        {part}
+      </mark>
+    ) : (
+      part
+    )
+  );
+}
+
+// Pull the distinct fill-in labels out of a document (the text after
+// "[PARENT TO ADD:"), for the "you still need to fill in" summary.
+function extractPlaceholderLabels(text) {
+  const matches = String(text).match(PLACEHOLDER_RE) || [];
+  const labels = matches.map((m) =>
+    m.replace(/^\[PARENT TO ADD:\s*/, "").replace(/\]$/, "").trim()
+  );
+  return Array.from(new Set(labels.filter(Boolean)));
 }
 
 function renderMessageText(content) {
