@@ -3474,44 +3474,6 @@ function describePageList(pages) {
   return "page" + (sorted.length === 1 ? " " : "s ") + ranges.join(", ");
 }
 
-// Calls Claude with a PDF as a document block plus a system prompt and a text
-// instruction. Used for IEP extraction. Returns parsed JSON.
-// Defaults to FAST_MODEL (Haiku) and a tighter token budget to stay under the
-// 26s function limit; the slimmer extraction schema needs far fewer tokens.
-async function callClaudeWithPDF(systemPrompt, pdfBase64, instruction, maxTokens = 2000, model = FAST_MODEL) {
-  const response = await fetch(API_URL, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      model: model,
-      max_tokens: maxTokens,
-      system: systemPrompt,
-      messages: [
-        {
-          role: "user",
-          content: [
-            {
-              type: "document",
-              source: { type: "base64", media_type: "application/pdf", data: pdfBase64 },
-            },
-            { type: "text", text: instruction },
-          ],
-        },
-      ],
-    }),
-  });
-  if (!response.ok) {
-    const err = await response.text();
-    throw new Error(`API ${response.status}: ${err.slice(0, 200)}`);
-  }
-  const data = await response.json();
-  const text = data.content
-    .filter((b) => b.type === "text")
-    .map((b) => b.text)
-    .join("\n");
-  return parseJSON(text);
-}
-
 // Walk the text tracking string state and brace depth to find a complete,
 // balanced JSON object. Much more robust than first-{ to last-} slicing.
 function extractBalancedJSON(text) {
