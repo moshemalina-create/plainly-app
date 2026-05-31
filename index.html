@@ -4637,88 +4637,6 @@ h1 em { font-style: italic; color: var(--accent); }
 // COMPONENTS
 // ============================================================================
 
-const PHASE_ORDER = ["child", "issue", "context", "wrap"];
-const PHASE_LABELS = {
-  child: "About child",
-  issue: "What's going on",
-  context: "Where things stand",
-  wrap: "Wrapping up",
-};
-
-function PhaseBar({ phase }) {
-  const idx = PHASE_ORDER.indexOf(phase);
-  return (
-    <>
-      <div className="phase-bar">
-        {PHASE_ORDER.map((p, i) => {
-          let cls = "phase-seg";
-          if (i < idx) cls += " done";
-          else if (i === idx) cls += " active";
-          return <div key={p} className={cls} />;
-        })}
-      </div>
-      <div className="phase-labels">
-        {PHASE_ORDER.map((p, i) => {
-          let cls = "phase-label";
-          if (i < idx) cls += " done";
-          else if (i === idx) cls += " active";
-          return (
-            <span key={p} className={cls}>
-              {PHASE_LABELS[p]}
-            </span>
-          );
-        })}
-      </div>
-    </>
-  );
-}
-
-function CapturedIntake({ intake }) {
-  const [open, setOpen] = useState(false);
-  const keys = Object.keys(intake).filter((k) => {
-    const v = intake[k];
-    if (v === null || v === undefined) return false;
-    if (Array.isArray(v) && v.length === 0) return false;
-    if (typeof v === "string" && v.trim() === "") return false;
-    return true;
-  });
-
-  const formatVal = (v) => {
-    if (Array.isArray(v)) return v.join(", ");
-    if (typeof v === "boolean") return v ? "yes" : "no";
-    return String(v);
-  };
-
-  return (
-    <div className="intake-panel">
-      <div className="intake-head" onClick={() => setOpen((o) => !o)}>
-        <span className="intake-title">
-          Structured intake captured silently
-        </span>
-        <span className="intake-count">
-          {keys.length} field{keys.length === 1 ? "" : "s"} · {open ? "hide" : "show"}
-        </span>
-      </div>
-      {open && (
-        <div className="intake-body">
-          {keys.length === 0 ? (
-            <p className="intake-empty">
-              Nothing captured yet — start the conversation above.
-            </p>
-          ) : (
-            keys.map((k) => (
-              <div key={k} className="intake-row">
-                <span className="intake-key">{k}:</span>
-                <span className="intake-val">{formatVal(intake[k])}</span>
-              </div>
-            ))
-          )}
-        </div>
-      )}
-    </div>
-  );
-}
-
 function TriageSection({ result, loading }) {
   if (loading) {
     return (
@@ -6418,8 +6336,6 @@ function ChatTool() {
           can use when I have enough.
         </p>
 
-        <PhaseBar phase={phase} />
-
         <div className="thread" ref={threadRef}>
           {messages.map((m, i) => (
             <div
@@ -6651,8 +6567,6 @@ function ChatTool() {
             drafting={drafting}
           />
         )}
-
-        <CapturedIntake intake={intake} />
 
         {/* The IEP structured-assessment UI (upload button → IEPSection →
             "What I'd look at" panel) was intentionally disconnected here. The
