@@ -18,6 +18,13 @@ of an upload in this flow — the chat references documents
 conversationally and only produces written assessments/letters when the
 parent explicitly asks.
 
+The chat's system prompt is `CHAT_ADVOCATE_PROMPT`. It was deliberately
+written long (advocate role, tone, document behavior, wait-checks,
+output library, attorney/uncertainty calibration) — voice was prioritized
+over brevity. **Revisit prompt length after some real usage**: if cost or
+latency becomes a concern, tighten it then, with behavior to measure
+against rather than trimming blind now.
+
 ### Preserved: the quick-assessment pipeline (NOT dead code)
 
 `IEP_EXTRACT_PROMPT`, `IEP_FLAG_PROMPT`, the `IEPSection` component, and
