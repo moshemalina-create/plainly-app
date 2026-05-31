@@ -2315,7 +2315,7 @@ Every reply you produce MUST be a single valid JSON object and NOTHING ELSE.
 - The very first character of your response MUST be { and the very last character MUST be }.
 - NO prose before the JSON. NO prose after it. NO markdown code fences.
 - The chat_reply field IS what the parent sees — your full conversational message goes there, never before the JSON.
-- Inside string values, escape newlines as \\n and double quotes as \\".
+- In chat_reply, use real line breaks between paragraphs — never write the literal two characters backslash then n.
 
 The JSON object:
 {
@@ -2941,7 +2941,7 @@ const RESPONSE_TOOL = {
       chat_reply: {
         type: "string",
         description:
-          "The message the parent sees in the chat thread. Your conversational response. Plain text. Use \\n for paragraph breaks.",
+          "The message the parent sees in the chat thread. Your conversational response. Plain text. Use ordinary line breaks for paragraphs.",
       },
       intake_updates: {
         type: "object",
@@ -3023,6 +3023,17 @@ const RESPONSE_TOOL = {
 // when the model honors tool_choice), falls back to parsing JSON from text
 // blocks if the model returns text instead. This handles environments where
 // tool_choice forcing isn't fully supported.
+// Models sometimes emit the literal characters backslash-n inside chat_reply
+// (the prompt no longer asks them to escape newlines, and tool_use input
+// arrives already-parsed so nothing un-escapes it). Convert any leftover
+// literal sequences back to real newlines so the renderer shows paragraphs.
+function normalizeReply(parsed) {
+  if (parsed && typeof parsed.chat_reply === "string") {
+    parsed.chat_reply = parsed.chat_reply.replace(/\\n/g, "\n");
+  }
+  return parsed;
+}
+
 async function callClaude(messages, dynamicSystem) {
   const apiMessages = messages.map((m) => ({ role: m.role, content: m.content }));
   const response = await fetch(API_URL, {
@@ -3048,7 +3059,7 @@ async function callClaude(messages, dynamicSystem) {
     (b) => b.type === "tool_use" && b.name === "respond_to_parent"
   );
   if (toolUse && toolUse.input) {
-    return toolUse.input;
+    return normalizeReply(toolUse.input);
   }
 
   // Path 2: model returned text — try to parse JSON out of it
@@ -3058,7 +3069,7 @@ async function callClaude(messages, dynamicSystem) {
     .join("\n");
   if (text && text.trim()) {
     try {
-      return parseJSON(text);
+      return normalizeReply(parseJSON(text));
     } catch (e) {
       // Graceful degradation: model returned plain conversational text without
       // structured output. Use the text as chat_reply so the conversation flows;
