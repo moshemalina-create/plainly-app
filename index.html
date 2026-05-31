@@ -20,6 +20,8 @@
 <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 <!-- PDF.js for in-browser PDF text extraction (keeps PDF parsing off the server clock) -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<!-- jsPDF for generating downloadable PDFs of letters/documents (exposes window.jspdf.jsPDF) -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script>
   // Configure the PDF.js worker (must match the library version above)
   if (window.pdfjsLib) {
@@ -3495,6 +3497,57 @@ function formatDocsForPrompt(docs) {
   return blocks.join("\n\n");
 }
 
+// Normalize typographic characters to ASCII for the PDF only. jsPDF's standard
+// fonts are WinAnsi-encoded and render em-dashes / curly quotes / ellipses as
+// garbage. We do this ONLY for the string handed to jsPDF — on-screen text and
+// the Copy action keep the original smart punctuation.
+function normalizeForPdf(text) {
+  return String(text)
+    .replace(/\r\n/g, "\n")
+    .replace(/[‘’‚‛]/g, "'")
+    .replace(/[“”„‟]/g, '"')
+    .replace(/[–—―]/g, "-")
+    .replace(/…/g, "...")
+    .replace(/ /g, " ")
+    .replace(/•/g, "*");
+}
+
+// Generate and download a clean, plain business-letter PDF from text. No
+// branding — this is the parent's document. Preserves the source's line breaks
+// (address blocks, signature blocks) and wraps long lines, paginating as
+// needed. If jsPDF failed to load, degrades gracefully to a clipboard copy.
+function downloadPdf(text, filename) {
+  const JsPDF = window.jspdf && window.jspdf.jsPDF;
+  if (!JsPDF) {
+    try { navigator.clipboard.writeText(text); } catch (e) {}
+    alert("PDF export isn't available right now — I've copied the text to your clipboard instead, so you can paste it into a document or email.");
+    return;
+  }
+  const doc = new JsPDF({ unit: "pt", format: "letter" });
+  const margin = 72; // 1 inch
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const pageHeight = doc.internal.pageSize.getHeight();
+  const maxWidth = pageWidth - margin * 2;
+  const fontSize = 11;
+  const lineHeight = fontSize * 1.45;
+  doc.setFont("times", "normal");
+  doc.setFontSize(fontSize);
+  const sourceLines = normalizeForPdf(text).split("\n");
+  let y = margin;
+  for (const srcLine of sourceLines) {
+    const wrapped = srcLine.length ? doc.splitTextToSize(srcLine, maxWidth) : [""];
+    for (const wline of wrapped) {
+      if (y + lineHeight > pageHeight - margin) {
+        doc.addPage();
+        y = margin;
+      }
+      doc.text(wline, margin, y);
+      y += lineHeight;
+    }
+  }
+  doc.save(filename);
+}
+
 // ============================================================================
 // STYLES
 // ============================================================================
@@ -4785,15 +4838,7 @@ function DraftReview({ draft, edited, onEditChange, changelog, checks, onCheckCh
   const finalText = edited != null ? edited : draft;
   const allChecked = checks.accuracy && checks.dates && checks.remedy;
 
-  const downloadText = () => {
-    const blob = new Blob([finalText], { type: "text/plain" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = "due_process_complaint.txt";
-    a.click();
-    URL.revokeObjectURL(url);
-  };
+  const downloadAsPdf = () => downloadPdf(finalText, "due-process-complaint.pdf");
   const copyToClipboard = () => {
     navigator.clipboard.writeText(finalText).then(() => alert("Copied."));
   };
@@ -4876,7 +4921,7 @@ function DraftReview({ draft, edited, onEditChange, changelog, checks, onCheckCh
             NYC DOE has its own filing portal (Impartial Hearing Office).
           </p>
           <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-            <button className="btn btn-primary" onClick={downloadText}>Download as .txt</button>
+            <button className="btn btn-primary" onClick={downloadAsPdf}>Download PDF</button>
             <button className="btn btn-ghost" onClick={copyToClipboard}>Copy to clipboard</button>
           </div>
         </div>
@@ -4949,15 +4994,7 @@ function OutputCard({ id, def, content, loading, onRegenerate }) {
 
   const currentText = editingText != null ? editingText : (typeof content === "string" ? content : "");
 
-  const downloadText = () => {
-    const blob = new Blob([currentText], { type: "text/plain" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `${id}.txt`;
-    a.click();
-    URL.revokeObjectURL(url);
-  };
+  const downloadAsPdf = () => downloadPdf(currentText, `${id.replace(/_/g, "-")}.pdf`);
   const copyText = () => {
     navigator.clipboard.writeText(currentText).then(() => alert("Copied."));
   };
@@ -5019,8 +5056,8 @@ function OutputCard({ id, def, content, loading, onRegenerate }) {
                     >
                       {editing ? "Done editing" : "Edit"}
                     </button>
-                    <button className="output-action-btn primary" onClick={downloadText}>
-                      Download
+                    <button className="output-action-btn primary" onClick={downloadAsPdf}>
+                      Download PDF
                     </button>
                     <button className="output-action-btn" onClick={copyText}>
                       Copy
