@@ -2693,6 +2693,20 @@ Return ONLY a JSON object (no fences):
 }`;
 
 // ============================================================================
+// PRESERVED — QUICK-ASSESSMENT PIPELINE (intentionally NOT wired into the chat)
+// ----------------------------------------------------------------------------
+// IEP_EXTRACT_PROMPT, IEP_FLAG_PROMPT (below), and the IEPSection component +
+// processIEP handler (further down) implement the one-shot structured IEP
+// assessment (Stage A extract -> Stage B flag -> "What I'd look at" panel).
+// As of the chat-as-primary change this is deliberately disconnected from the
+// chat / "Let's get started" flow — uploads now feed extracted text to the
+// chat instead (see handleAttach / formatDocsForPrompt). It is kept intact and
+// isolated for a planned second entry point ("Quick IEP assessment"). See
+// CLAUDE.md. DO NOT delete or refactor as dead code.
+//
+// (Note: the PDF helpers extractPdfText / pdfQualityBlocker are SHARED with the
+// live chat attach flow — they are not preserved-only.)
+// ============================================================================
 // IEP EXTRACTION PROMPT — Stage A: pull structured data out of the IEP
 // ============================================================================
 
@@ -5359,6 +5373,9 @@ function Checklist({ data, checked, onToggle, loading }) {
 
 // ============================================================================
 // IEP UPLOAD + REVIEW
+// PRESERVED — part of the quick-assessment pipeline; intentionally NOT mounted
+// in the chat flow as of chat-as-primary. Reserved for a future "Quick IEP
+// assessment" entry point. See CLAUDE.md. Do not delete as dead code.
 // ============================================================================
 
 function IEPSection({
@@ -5903,6 +5920,11 @@ function ChatTool() {
 
   // ============================================================================
   // IEP UPLOAD PROCESSING
+  // PRESERVED — Stage A + Stage B structured assessment. As of chat-as-primary
+  // this is intentionally not called from the chat flow (no UI mounts it).
+  // Reserved for a future "Quick IEP assessment" entry point. See CLAUDE.md.
+  // processIEP, submitIepAnswers, and clearIEP below all belong to this
+  // preserved pipeline. Do not delete as dead code.
   // ============================================================================
 
   const processIEP = async (file) => {
@@ -6670,41 +6692,12 @@ function ChatTool() {
 
         <CapturedIntake intake={intake} />
 
-        {!iepUploadVisible && !iepFlags && (
-          <div style={{ marginTop: 14 }}>
-            <button
-              className="btn btn-secondary"
-              onClick={() => setIepUploadVisible(true)}
-              style={{ fontSize: 14 }}
-            >
-              📄 Upload {intake.student_first_name ? intake.student_first_name + "'s" : "your child's"} IEP for review
-            </button>
-          </div>
-        )}
-
-        {!iepUploadVisible && iepFlags && (
-          <div style={{ marginTop: 14, padding: "10px 14px", background: "var(--accent-soft)", borderRadius: 6, fontSize: 13.5, color: "var(--ink-muted)" }}>
-            ✓ IEP reviewed{iepFileName ? ` (${iepFileName})` : ""} — {iepFlags?.flags?.length || 0} item{iepFlags?.flags?.length === 1 ? "" : "s"} flagged.{" "}
-            <a href="#" onClick={(e) => { e.preventDefault(); setIepUploadVisible(true); }} style={{ color: "var(--accent)" }}>View again</a>
-          </div>
-        )}
-
-        {iepUploadVisible && (
-          <IEPSection
-            fileName={iepFileName}
-            extraction={iepExtraction}
-            flags={iepFlags}
-            flagAnswers={iepFlagAnswers}
-            setFlagAnswers={setIepFlagAnswers}
-            processing={iepProcessing}
-            error={iepError}
-            onUpload={processIEP}
-            onClear={clearIEP}
-            onSubmitAnswers={submitIepAnswers}
-            onClose={() => setIepUploadVisible(false)}
-            childFirstName={intake.student_first_name}
-          />
-        )}
+        {/* The IEP structured-assessment UI (upload button → IEPSection →
+            "What I'd look at" panel) was intentionally disconnected here. The
+            chat now takes documents through the generic attach affordance in
+            the composer above. The assessment pipeline (processIEP, IEPSection,
+            IEP_EXTRACT_PROMPT, IEP_FLAG_PROMPT) is PRESERVED for a future
+            "Quick IEP assessment" entry point — see CLAUDE.md. Do not delete. */}
 
         {waitChecks.filter((w) => VALID_WAIT_CHECKS.includes(w)).length > 0 && (
           <div style={{ marginTop: 12, fontSize: 12, color: "var(--ink-soft)" }}>

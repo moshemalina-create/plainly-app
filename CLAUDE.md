@@ -5,6 +5,38 @@ Babel-standalone) for NY parents navigating special education due
 process. Deploys from this repo to Netlify; one serverless function
 (`netlify/functions/claude.js`) proxies the Anthropic API.
 
+## Architecture: the chat is the product
+
+The `#/start` route renders `ChatTool` — a single conversational guide
+that helps a parent understand their situation, make sense of their
+documents, push back on school decisions, and prepare for meetings.
+Documents are uploaded **into the chat** (the attach button in the
+composer): the PDF text is extracted in the browser and folded into the
+chat's system prompt (`formatDocsForPrompt` → `UPLOADED DOCUMENTS`
+section in `processCall`). There is no automatic structured assessment
+of an upload in this flow — the chat references documents
+conversationally and only produces written assessments/letters when the
+parent explicitly asks.
+
+### Preserved: the quick-assessment pipeline (NOT dead code)
+
+`IEP_EXTRACT_PROMPT`, `IEP_FLAG_PROMPT`, the `IEPSection` component, and
+the `processIEP` / `submitIepAnswers` / `clearIEP` handlers implement a
+one-shot **structured IEP assessment** (Stage A extract → Stage B flag →
+the "What I'd look at" panel). As of the `chat-as-primary` change this
+pipeline is **intentionally disconnected** from the chat flow — no UI
+mounts it. It is kept intact and isolated, behind banner comments in
+`index.html`, for a planned **second landing-page entry point** ("Want a
+quick IEP assessment?"): a transactional flow where the parent describes
+the situation, uploads documents, receives the structured assessment in
+one shot, and is then offered the chat for follow-up. That future flow
+reuses this code.
+
+**Do not delete or refactor these as unused.** They are unreferenced by
+design, awaiting re-wiring to the new entry point. (The PDF helpers
+`extractPdfText` / `pdfQualityBlocker` are *shared* with the live chat
+attach flow, so those are not preserved-only.)
+
 ## Future / planned features
 
 **Expand document uploads beyond IEPs.** The PDF upload flow currently
