@@ -5550,12 +5550,20 @@ function ChatTool() {
   const [outputsRequested, setOutputsRequested] = useState([]);
   const [outputs, setOutputs] = useState({});
   const [outputsLoading, setOutputsLoading] = useState({});
-  // Minimum fields the parent provides for letter outputs (full name, etc.)
-  const [letterFields, setLetterFields] = useState({
+  // Formal, exact-spelling identity fields the parent types into a form — never
+  // gathered in chat (the canonical-intake split: substantive facts live in
+  // `intake`, transcription-only identity lives here). Lighter outputs use the
+  // two name fields; full_complaint uses all six. Injected read-only into the
+  // chat's system context (see processCall) so the chat never re-asks them.
+  const [formalFields, setFormalFields] = useState({
     parent_full_name: "",
+    parent_address: "",
+    parent_email: "",
+    parent_phone: "",
     child_full_name: "",
+    child_dob: "",
   });
-  const [letterFieldsCollected, setLetterFieldsCollected] = useState(false);
+  const [formalFieldsCollected, setFormalFieldsCollected] = useState(false);
 
   // IEP upload + review
   const [iepFileName, setIepFileName] = useState(null);
@@ -5631,8 +5639,11 @@ function ChatTool() {
             if (saved.assessmentRequested) setAssessmentRequested(saved.assessmentRequested);
             if (saved.outputsRequested) setOutputsRequested(saved.outputsRequested);
             if (saved.outputs) setOutputs(saved.outputs);
-            if (saved.letterFields) setLetterFields((f) => ({ ...f, ...saved.letterFields }));
-            if (saved.letterFieldsCollected) setLetterFieldsCollected(saved.letterFieldsCollected);
+            // Migrate the pre-canonical-intake `letterFields` blob into formalFields.
+            const savedFormal = saved.formalFields || saved.letterFields;
+            if (savedFormal) setFormalFields((f) => ({ ...f, ...savedFormal }));
+            if (saved.formalFieldsCollected || saved.letterFieldsCollected)
+              setFormalFieldsCollected(saved.formalFieldsCollected || saved.letterFieldsCollected);
             if (saved.iepFileName) setIepFileName(saved.iepFileName);
             if (saved.iepExtraction) setIepExtraction(saved.iepExtraction);
             if (saved.iepFlags) setIepFlags(saved.iepFlags);
@@ -5668,7 +5679,7 @@ function ChatTool() {
               messages, intake, chatState, waitChecks, checklist, checkedItems,
               triageResult, drafterFormOpen, drafterForm, draft, draftChangelog, draftEdited, reviewChecks,
               assessmentRequested,
-              outputsRequested, outputs, letterFields, letterFieldsCollected,
+              outputsRequested, outputs, formalFields, formalFieldsCollected,
               iepFileName, iepExtraction, iepFlags, iepFlagAnswers,
               uploadedDocs,
             })
@@ -5678,7 +5689,7 @@ function ChatTool() {
         // Save failed — silent
       }
     })();
-  }, [loaded, messages, intake, chatState, waitChecks, checklist, checkedItems, triageResult, drafterFormOpen, drafterForm, draft, draftChangelog, draftEdited, reviewChecks, assessmentRequested, outputsRequested, outputs, letterFields, letterFieldsCollected, iepFileName, iepExtraction, iepFlags, iepFlagAnswers, uploadedDocs]);
+  }, [loaded, messages, intake, chatState, waitChecks, checklist, checkedItems, triageResult, drafterFormOpen, drafterForm, draft, draftChangelog, draftEdited, reviewChecks, assessmentRequested, outputsRequested, outputs, formalFields, formalFieldsCollected, iepFileName, iepExtraction, iepFlags, iepFlagAnswers, uploadedDocs]);
 
   // Note: the personalized document checklist is now generated as part of the
   // outputs library (id "document_checklist") when the parent requests it,
@@ -5741,8 +5752,8 @@ function ChatTool() {
     const today = new Date().toISOString().slice(0, 10);
     const sharedContext = {
       today,
-      parent_full_name: letterFields.parent_full_name || "[PARENT TO ADD: full name]",
-      child_full_name: letterFields.child_full_name || "[PARENT TO ADD: child's full name]",
+      parent_full_name: formalFields.parent_full_name || "[PARENT TO ADD: full name]",
+      child_full_name: formalFields.child_full_name || "[PARENT TO ADD: child's full name]",
       captured_intake: intake,
       district_name: intake.district_name || "[PARENT TO ADD: district name]",
       chat_excerpt: messages
@@ -5808,7 +5819,7 @@ function ChatTool() {
     const pendingLetters = outputsRequested.filter(
       (id) => outputNeedsLetterFields(id) && !outputs[id] && !outputsLoading[id]
     );
-    if (pendingLetters.length > 0 && !letterFieldsCollected) return;
+    if (pendingLetters.length > 0 && !formalFieldsCollected) return;
     for (const id of outputsRequested) {
       if (id === "full_complaint") continue;
       if (!outputs[id] && !outputsLoading[id]) {
@@ -5816,7 +5827,7 @@ function ChatTool() {
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [outputsRequested, letterFieldsCollected, loaded]);
+  }, [outputsRequested, formalFieldsCollected, loaded]);
 
   // ============================================================================
   // IEP UPLOAD PROCESSING
@@ -6081,6 +6092,23 @@ function ChatTool() {
       CHAT_ADVOCATE_PROMPT +
       "\n\n--- INTAKE STATE SO FAR ---\n" +
       JSON.stringify(intake, null, 2);
+    // Formal identity fields the parent already typed into a form this session.
+    // Surface them so the chat doesn't re-ask — and so it doesn't ask in chat
+    // for the ones the form (not the chat) is responsible for collecting.
+    const collectedFormal = [
+      ["Parent's full name", formalFields.parent_full_name],
+      ["Parent's address", formalFields.parent_address],
+      ["Parent's email", formalFields.parent_email],
+      ["Parent's phone", formalFields.parent_phone],
+      ["Child's full name", formalFields.child_full_name],
+      ["Child's date of birth", formalFields.child_dob],
+    ].filter(([, v]) => v && String(v).trim());
+    if (collectedFormal.length > 0) {
+      baseSystem +=
+        "\n\n--- ALREADY COLLECTED (do not re-ask these — the parent typed them into the form) ---\n" +
+        collectedFormal.map(([k, v]) => `- ${k}: ${v}`).join("\n") +
+        "\nIf you need other identity fields for a specific output, the form below will collect them; do not ask for them in chat.";
+    }
     const docsBlock = formatDocsForPrompt(docs);
     if (docsBlock) {
       baseSystem += "\n\n--- UPLOADED DOCUMENTS ---\n" + docsBlock;
@@ -6265,8 +6293,11 @@ function ChatTool() {
     setOutputsRequested([]);
     setOutputs({});
     setOutputsLoading({});
-    setLetterFields({ parent_full_name: "", child_full_name: "" });
-    setLetterFieldsCollected(false);
+    setFormalFields({
+      parent_full_name: "", parent_address: "", parent_email: "",
+      parent_phone: "", child_full_name: "", child_dob: "",
+    });
+    setFormalFieldsCollected(false);
     setIepFileName(null);
     setIepExtraction(null);
     setIepFlags(null);
@@ -6492,16 +6523,16 @@ function ChatTool() {
           </div>
 
         {/* LETTER FIELDS PROMPT — first, so the parent can complete and see outputs ASAP */}
-        {assessmentRequested && !letterFieldsCollected && (() => {
+        {assessmentRequested && !formalFieldsCollected && (() => {
           const pending = outputsRequested.filter(
             (id) => OUTPUT_LIBRARY[id]?.min_fields?.length > 0 && id !== "full_complaint" && !outputs[id] && !outputsLoading[id]
           );
           if (pending.length === 0) return null;
           return (
             <LetterFieldsForm
-              values={letterFields}
-              onChange={setLetterFields}
-              onSubmit={() => setLetterFieldsCollected(true)}
+              values={formalFields}
+              onChange={setFormalFields}
+              onSubmit={() => setFormalFieldsCollected(true)}
               neededFor={pending}
               childFirstName={intake.student_first_name}
             />
