@@ -5,6 +5,31 @@ Babel-standalone) for NY parents navigating special education due
 process. Deploys from this repo to Netlify; one serverless function
 (`netlify/functions/claude.js`) proxies the Anthropic API.
 
+## Working conventions
+
+How we work on Plainly, so a fresh session inherits the norms instead of
+rediscovering them.
+
+**Scope in chat; implement in Claude Code.** Design and architecture are
+thought through and settled in a chat-side conversation first; Claude Code
+is where the agreed design gets built. When a task arrives as a scoping
+document or an open design question, the deliverable is the
+diagnosis / plan / doc — **not code** — until the shape is signed off.
+Don't jump to implementation while the design is still being decided.
+(Example: `docs/accounts-persistence.md` was scoped this way before any
+build.)
+
+**Pre-flight checklist — before writing or shipping code:**
+
+- **Branch first.** Never commit to `main`. Open a branch for the change.
+- **Deploy-preview test before merge.** This is a browser app plus a
+  serverless function; correctness is confirmed against the Netlify deploy
+  preview, not by reading the diff alone. Nothing lands on `main` until the
+  preview has been exercised.
+- **Explicit approval before push or merge.** Pushing a branch and merging
+  to `main` are owner-gated actions. Don't push or merge without an explicit
+  go-ahead, even when the work looks finished.
+
 ## Architecture: the chat is the product
 
 The `#/start` route renders `ChatTool` — a single conversational guide
