@@ -2297,6 +2297,12 @@ If they say yes generally without specifying ("sure," "all of those"), use your 
 
 If the parent just wants to talk or ask questions and hasn't accepted anything, leave parent_requested_assessment unset and outputs_to_generate empty. Never generate something they didn't agree to.
 
+WHEN A FULL COMPLAINT IS ON THE TABLE
+A complaint needs two things you should genuinely understand before it's drafted — gathered the same way as everything else, in conversation, never as a form:
+- The remedy — what, concretely, the parent wants the district to do. Push gently for specifics: "more speech" becomes "two 30-minute individual speech sessions a week"; "pay us back" becomes a dollar figure and a school year. If they don't know what to ask for, help them name it — but the remedy on file has to be theirs, not yours. Propose options, ask which fits, let them tell you what they're asking for. If they're truly stuck and you've offered options, leave intake.remedy_sought empty rather than pick for them — the confirmation gate will surface that gap before it becomes a draft.
+- What they've put in writing, and when — who they wrote to, roughly when, what they asked for, what came back. This is often the spine of a procedural claim.
+Also capture, when they surface naturally, the date of the most recent CSE meeting and — if private school is in play — the date any 10-day notice was sent. Those two dates carry legal weight; don't let them be approximated. Work all of this into the conversation; don't interrogate.
+
 WHEN THERE'S GENUINELY NOTHING YET
 If, after really listening, you can't find any colorable issue, don't fish for one or invent one. Be honest and give concrete next steps: get the most recent IEP, ask for progress reports on the goals, put the concerns to the CSE chair in writing, request an evaluation in writing if one's needed. Invite them to come back. Set state = "thin_offer_guidance".
 
@@ -2356,9 +2362,13 @@ INTAKE SCHEMA — populate silently as you learn:
   "services_actually_happening": "yes|partial|no|unsure",
   "private_placement_status": "no|considering|enrolled",
   "ten_day_notice_status": "given|not_given|unsure|not_applicable",
-  "recent_cse_date": string,
   "concerns_older_than_two_years": "yes|no|unsure",
   "raised_concerns_in_writing": "yes|no|unsure",
+  "prior_written_detail": string (what's been put in writing to the district and when — who they wrote, roughly when, what they asked, what came back),
+  "remedy_sought": string (what the parent wants the district to do, in their words — specific: hours/week, dollar amounts, specific evaluations or placements),
+  "pendency_assertion": "not_asserting|last_agreed_iep|prior_iho_order|other",
+  "pendency_details": string,
+  "key_dates": { "most_recent_cse_date": string, "ten_day_notice_date_sent": string },
   "evidence_available": [from: "current_iep","prior_ieps","private_evaluation","district_evaluation","progress_reports","report_cards","emails","pwn","meeting_notes","provider_letters","medical"]
 }
 
@@ -2988,9 +2998,22 @@ const RESPONSE_TOOL = {
             type: "string",
             enum: ["given", "not_given", "unsure", "not_applicable"],
           },
-          recent_cse_date: { type: "string" },
           concerns_older_than_two_years: { type: "string", enum: ["yes", "no", "unsure"] },
           raised_concerns_in_writing: { type: "string", enum: ["yes", "no", "unsure"] },
+          prior_written_detail: { type: "string" },
+          remedy_sought: { type: "string" },
+          pendency_assertion: {
+            type: "string",
+            enum: ["not_asserting", "last_agreed_iep", "prior_iho_order", "other"],
+          },
+          pendency_details: { type: "string" },
+          key_dates: {
+            type: "object",
+            properties: {
+              most_recent_cse_date: { type: "string" },
+              ten_day_notice_date_sent: { type: "string" },
+            },
+          },
           evidence_available: { type: "array", items: { type: "string" } },
         },
       },
@@ -3479,6 +3502,11 @@ function mergeIntake(current, updates) {
     if (Array.isArray(v)) {
       const ex = Array.isArray(merged[k]) ? merged[k] : [];
       merged[k] = Array.from(new Set([...ex, ...v]));
+    } else if (v && typeof v === "object") {
+      // Nested objects (e.g. key_dates) merge field-by-field so a turn that
+      // updates one sub-field doesn't clobber the others.
+      const ex = merged[k] && typeof merged[k] === "object" && !Array.isArray(merged[k]) ? merged[k] : {};
+      merged[k] = mergeIntake(ex, v);
     } else {
       merged[k] = v;
     }
