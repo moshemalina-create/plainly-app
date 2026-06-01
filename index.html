@@ -2287,15 +2287,27 @@ When you offer, be specific and tailored — pick the 1-3 most relevant to their
 WHEN YOU OFFER AND THE PARENT ACCEPTS — hand off, don't draft
 When you trigger an output, the document is generated separately and appears in a panel directly below the conversation, where the parent can read it, fill in highlighted [PARENT TO ADD: …] blanks, download it as a PDF, or copy it. Do NOT write the document's text in your chat_reply. This means no full text, no partial drafts, no "here's roughly what I'm thinking" previews. The panel is the document. Your chat_reply is the hand-off.
 
-Don't ask for the kind of formal details that turn into bracketed placeholders — addresses, official names, dates, identification numbers, district mailing addresses, things like that. The panel surfaces them as fill-in spots; you don't need to collect them in chat.
+Don't ask for the kind of formal letterhead details that turn into bracketed placeholders — addresses, official names, identification numbers, district mailing addresses, things like that. The panel surfaces those as fill-in spots; you don't need to collect them in chat. This is about transcription, not substance: the case facts and the dates that carry legal weight — see "WHEN A FULL COMPLAINT IS ON THE TABLE" — you DO gather in conversation, because they're the content of the document, not letterhead.
 
 Your chat_reply is a short, specific hand-off: name the document you've drafted, point to the panel below, and say what they'll need to fill in. A parent in a stressful moment may not notice a panel below the fold — be specific so they know to look and what to look for. For example: "I've drafted a follow-up letter to the CSE chair below. You'll need to fill in your address and a couple of other details — they're highlighted in the letter. Tell me if you want any changes to the wording." (Name the specific fields when you can — addresses, the chair's name, the IEP date, whatever the document actually needs — rather than "a couple of details.")
 
 If the parent asks for revisions to the wording, that's a request to regenerate the output — set outputs_to_generate again with the same ID. Don't paste a new version into chat. Stay open to revisions if they want them.
 
-If they say yes generally without specifying ("sure," "all of those"), use your judgment and include the 1-3 you offered. If they ask for the full complaint, include "full_complaint" — the UI will collect the formal details for that one. Append across turns; once parent_requested_assessment is true, it stays true.
+If they say yes generally without specifying ("sure," "all of those"), use your judgment and include the 1-3 you offered. The full complaint is the one exception to triggering on acceptance: don't add "full_complaint" the moment they ask — confirm the ask first (see the confirmation step below). For it, the panel collects only exact-spelling identity (names, address, child's DOB); the remedy and substance come from what you've gathered in the chat. Append across turns; once parent_requested_assessment is true, it stays true.
 
 If the parent just wants to talk or ask questions and hasn't accepted anything, leave parent_requested_assessment unset and outputs_to_generate empty. Never generate something they didn't agree to.
+
+WHEN A FULL COMPLAINT IS ON THE TABLE
+A complaint needs two things you should genuinely understand before it's drafted — gathered the same way as everything else, in conversation, never as a form:
+- The remedy — what, concretely, the parent wants the district to do. Push gently for specifics: "more speech" becomes "two 30-minute individual speech sessions a week"; "pay us back" becomes a dollar figure and a school year. If they don't know what to ask for, help them name it — but the remedy on file has to be theirs, not yours. Propose options, ask which fits, let them tell you what they're asking for. If they're truly stuck and you've offered options, leave intake.remedy_sought empty rather than pick for them — the confirmation gate will surface that gap before it becomes a draft.
+- What they've put in writing, and when — who they wrote to, roughly when, what they asked for, what came back. This is often the spine of a procedural claim.
+Also capture, when they surface naturally, the date of the most recent CSE meeting and — if private school is in play — the date any 10-day notice was sent. Those two dates carry legal weight; don't let them be approximated. Work all of this into the conversation; don't interrogate.
+
+BEFORE YOU TRIGGER A FULL COMPLAINT — CONFIRM THE ASK
+The full complaint is a legal document the parent will file. Unlike the lighter letters, do NOT trigger it the moment they say yes. First, in your reply, restate the essentials and ask them to confirm: what you'll ask the district for (the remedy, specifically), and the key dates you have (most recent CSE meeting; 10-day notice date if relevant). Keep it short and plain: "Before I draft this — here's what I'll ask for: [X]. And I've got [date] as your most recent CSE meeting. Does that look right, or do you want to change anything?" If you don't yet have a remedy to restate (intake.remedy_sought is empty), don't run this confirmation on a blank — establish the remedy with the parent first, then confirm.
+Confirmation means an affirmative response to the specific items you restated — "yes, that's right" or similar. Hedged or ambiguous responses ("I think so," "I guess," "whatever you say") are not confirmation; ask for a clearer yes, or ask which piece they're unsure about.
+On that turn, do NOT put full_complaint in outputs_to_generate — wait. Only once the parent confirms (or corrects, then confirms) do you set parent_requested_assessment = true and add "full_complaint". If they correct something, update the intake first, then confirm again.
+This step is ONLY for full_complaint. Every other output triggers as soon as the parent accepts — the panel lets them edit before sending.
 
 WHEN THERE'S GENUINELY NOTHING YET
 If, after really listening, you can't find any colorable issue, don't fish for one or invent one. Be honest and give concrete next steps: get the most recent IEP, ask for progress reports on the goals, put the concerns to the CSE chair in writing, request an evaluation in writing if one's needed. Invite them to come back. Set state = "thin_offer_guidance".
@@ -2356,9 +2368,13 @@ INTAKE SCHEMA — populate silently as you learn:
   "services_actually_happening": "yes|partial|no|unsure",
   "private_placement_status": "no|considering|enrolled",
   "ten_day_notice_status": "given|not_given|unsure|not_applicable",
-  "recent_cse_date": string,
   "concerns_older_than_two_years": "yes|no|unsure",
   "raised_concerns_in_writing": "yes|no|unsure",
+  "prior_written_detail": string (what's been put in writing to the district and when — who they wrote, roughly when, what they asked, what came back),
+  "remedy_sought": string (what the parent wants the district to do, in their words — specific: hours/week, dollar amounts, specific evaluations or placements),
+  "pendency_assertion": "not_asserting|last_agreed_iep|prior_iho_order|other",
+  "pendency_details": string,
+  "key_dates": { "most_recent_cse_date": string, "ten_day_notice_date_sent": string },
   "evidence_available": [from: "current_iep","prior_ieps","private_evaluation","district_evaluation","progress_reports","report_cards","emails","pwn","meeting_notes","provider_letters","medical"]
 }
 
@@ -2431,7 +2447,8 @@ const OUTPUT_LIBRARY = {
     label: "Full draft complaint",
     short: "The complete due process complaint, ready to review and file. Requires a few formal details.",
     relevance: "Use when parent wants to see what filing would actually look like, even if not yet decided to file.",
-    min_fields: ["parent_full_name", "parent_address", "parent_email", "parent_phone", "child_full_name", "child_dob", "district_name", "remedy_specifics"],
+    // Identity only — district and remedy now come from the chat-gathered intake.
+    min_fields: ["parent_full_name", "parent_address", "parent_email", "parent_phone", "child_full_name", "child_dob"],
   },
 };
 
@@ -2940,10 +2957,7 @@ REWRITE IF YOU SEE
 
 DO NOT REWRITE: Parent's own words. Specific service amounts, dates, names, addresses, dollar figures. Remedy specificity. Bracketed [PARENT TO ADD: ...] placeholders.
 
-Return ONLY JSON (no fences):
-{"cleaned_draft": "string — cleaned draft as plain text", "changes_made": ["string", ...]}
-
-If no changes: changes_made = ["No changes needed — draft is already in parent voice."]`;
+Return ONLY the cleaned draft as plain text — the letter itself, ready to read. No JSON, no fences, no preamble, no commentary, no list of changes. If nothing needs changing, return the draft unchanged.`;
 
 // ============================================================================
 // RESPONSE TOOL — forces structured output via Anthropic tool_use
@@ -2988,9 +3002,22 @@ const RESPONSE_TOOL = {
             type: "string",
             enum: ["given", "not_given", "unsure", "not_applicable"],
           },
-          recent_cse_date: { type: "string" },
           concerns_older_than_two_years: { type: "string", enum: ["yes", "no", "unsure"] },
           raised_concerns_in_writing: { type: "string", enum: ["yes", "no", "unsure"] },
+          prior_written_detail: { type: "string" },
+          remedy_sought: { type: "string" },
+          pendency_assertion: {
+            type: "string",
+            enum: ["not_asserting", "last_agreed_iep", "prior_iho_order", "other"],
+          },
+          pendency_details: { type: "string" },
+          key_dates: {
+            type: "object",
+            properties: {
+              most_recent_cse_date: { type: "string" },
+              ten_day_notice_date_sent: { type: "string" },
+            },
+          },
           evidence_available: { type: "array", items: { type: "string" } },
         },
       },
@@ -3479,6 +3506,11 @@ function mergeIntake(current, updates) {
     if (Array.isArray(v)) {
       const ex = Array.isArray(merged[k]) ? merged[k] : [];
       merged[k] = Array.from(new Set([...ex, ...v]));
+    } else if (v && typeof v === "object") {
+      // Nested objects (e.g. key_dates) merge field-by-field so a turn that
+      // updates one sub-field doesn't clobber the others.
+      const ex = merged[k] && typeof merged[k] === "object" && !Array.isArray(merged[k]) ? merged[k] : {};
+      merged[k] = mergeIntake(ex, v);
     } else {
       merged[k] = v;
     }
@@ -4189,28 +4221,6 @@ h1 em { font-style: italic; color: var(--accent); }
   resize: vertical;
   padding: 0;
 }
-.changelog {
-  background: var(--surface-2);
-  border-radius: 6px;
-  padding: 14px 18px;
-  margin-top: 14px;
-  font-size: 13.5px;
-}
-.changelog-title {
-  font-family: 'Fraunces', serif;
-  font-weight: 500;
-  font-size: 14px;
-  margin: 0 0 6px;
-  color: var(--ink);
-}
-.changelog-item {
-  padding: 3px 0;
-  color: var(--ink-muted);
-  display: flex;
-  gap: 8px;
-}
-.changelog-item::before { content: '·'; color: var(--accent); font-weight: 700; }
-
 .review-checks {
   background: var(--surface);
   border: 1px solid var(--border-soft);
@@ -4681,165 +4691,7 @@ function TriageSection({ result, loading }) {
   );
 }
 
-function DrafterForm({ values, onChange, onSubmit, onCancel }) {
-  const evidenceOptions = [
-    { id: "current_iep", label: "Current IEP" },
-    { id: "prior_ieps", label: "Prior IEPs" },
-    { id: "private_evaluation", label: "Private evaluation" },
-    { id: "district_evaluation", label: "District evaluation" },
-    { id: "progress_reports", label: "Progress reports" },
-    { id: "report_cards", label: "Report cards" },
-    { id: "emails", label: "Emails with district" },
-    { id: "pwn", label: "Prior written notice from district" },
-    { id: "meeting_notes", label: "CSE meeting notes" },
-    { id: "provider_letters", label: "Provider/therapist letters" },
-    { id: "medical", label: "Medical records" },
-  ];
-
-  const set = (k, v) => onChange((prev) => ({ ...prev, [k]: v }));
-  const toggleEvidence = (id) =>
-    onChange((prev) => ({
-      ...prev,
-      evidence: prev.evidence.includes(id)
-        ? prev.evidence.filter((x) => x !== id)
-        : [...prev.evidence, id],
-    }));
-
-  const canSubmit =
-    values.parentName.trim() &&
-    values.parentAddress.trim() &&
-    values.studentFullName.trim() &&
-    values.districtName.trim() &&
-    values.remedy.trim();
-
-  return (
-    <div className="stage-block">
-      <div className="stage-eyebrow">Last step before drafting</div>
-      <h3 className="stage-title">A few formal details.</h3>
-      <p className="stage-lede">
-        We need these for the caption of the complaint and to spell out exactly
-        what you're asking for. P.O. box is fine for the address.
-      </p>
-
-      <div className="drafter-form">
-        <div className="drafter-section">
-          <h4>For the caption</h4>
-          <p className="help">Required by NY procedure to identify who is filing on whose behalf.</p>
-          <div className="field">
-            <label>Your full legal name</label>
-            <input value={values.parentName} onChange={(e) => set("parentName", e.target.value)} placeholder="Sarah Goldberg" />
-          </div>
-          <div className="field">
-            <label>Your mailing address</label>
-            <input value={values.parentAddress} onChange={(e) => set("parentAddress", e.target.value)} placeholder="123 Main St, New Rochelle, NY 10801" />
-          </div>
-          <div className="row-2">
-            <div className="field">
-              <label>Email</label>
-              <input type="email" value={values.parentEmail} onChange={(e) => set("parentEmail", e.target.value)} />
-            </div>
-            <div className="field">
-              <label>Phone</label>
-              <input value={values.parentPhone} onChange={(e) => set("parentPhone", e.target.value)} />
-            </div>
-          </div>
-          <div className="field">
-            <label>Your child's full legal name</label>
-            <input value={values.studentFullName} onChange={(e) => set("studentFullName", e.target.value)} />
-          </div>
-          <div className="row-2">
-            <div className="field">
-              <label>Your child's date of birth</label>
-              <input type="date" value={values.studentDOB} onChange={(e) => set("studentDOB", e.target.value)} />
-            </div>
-            <div className="field">
-              <label>School district</label>
-              <input value={values.districtName} onChange={(e) => set("districtName", e.target.value)} placeholder="New Rochelle City School District" />
-            </div>
-          </div>
-        </div>
-
-        <div className="drafter-section">
-          <h4>What you're asking for</h4>
-          <p className="help">
-            Be specific. Examples: "Find Abie eligible for an IEP and provide structured literacy intervention 5x/week." "Reimburse $42,000 in tuition for 2024-25." "Add 2 sessions of individual speech per week."
-          </p>
-          <div className="field">
-            <textarea rows={5} value={values.remedy} onChange={(e) => set("remedy", e.target.value)} />
-          </div>
-        </div>
-
-        <div className="drafter-section">
-          <h4>Have you put concerns in writing to the district?</h4>
-          <p className="help">If yes — when, what you said, what they said back. Often important for the complaint.</p>
-          <div className="field">
-            <textarea rows={4} value={values.priorWritten} onChange={(e) => set("priorWritten", e.target.value)} placeholder="e.g., Emailed CSE chair Jane Smith on 3/15/25 requesting more support. No response. Followed up 4/2/25..." />
-          </div>
-        </div>
-
-        <div className="drafter-section">
-          <h4>Documents you have</h4>
-          <p className="help">Pick anything you have — these get listed at the end of the complaint.</p>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-            {evidenceOptions.map((opt) => (
-              <button
-                key={opt.id}
-                type="button"
-                onClick={() => toggleEvidence(opt.id)}
-                style={{
-                  padding: "6px 12px",
-                  borderRadius: 999,
-                  border: "1px solid var(--border)",
-                  background: values.evidence.includes(opt.id) ? "var(--accent)" : "white",
-                  color: values.evidence.includes(opt.id) ? "white" : "var(--ink)",
-                  cursor: "pointer",
-                  fontSize: 13,
-                  fontFamily: "inherit",
-                }}
-              >
-                {opt.label}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        <div className="drafter-section">
-          <h4>Pendency (stay-put)</h4>
-          <p className="help">
-            Filing usually freezes your child's program in place during the case. If there's a specific program you want treated as "current" — e.g., the last IEP you both agreed on — say so.
-          </p>
-          <div className="field">
-            <select value={values.pendency} onChange={(e) => set("pendency", e.target.value)}>
-              <option value="not_asserting">Not asserting anything specific</option>
-              <option value="last_agreed_iep">The last IEP we agreed on</option>
-              <option value="prior_iho_order">A prior hearing officer order</option>
-              <option value="other">Something else</option>
-            </select>
-          </div>
-          {values.pendency !== "not_asserting" && (
-            <div className="field">
-              <label>Briefly describe</label>
-              <textarea rows={3} value={values.pendencyDetails} onChange={(e) => set("pendencyDetails", e.target.value)} />
-            </div>
-          )}
-        </div>
-
-        <div style={{ display: "flex", gap: 10, marginTop: 16 }}>
-          <button className="btn btn-primary" onClick={onSubmit} disabled={!canSubmit}>
-            Generate the draft
-          </button>
-          {onCancel && (
-            <button className="btn btn-ghost" onClick={onCancel}>
-              Cancel
-            </button>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function DraftReview({ draft, edited, onEditChange, changelog, checks, onCheckChange, onRegenerate, drafting }) {
+function DraftReview({ draft, edited, onEditChange, checks, onCheckChange, onRegenerate, drafting }) {
   const [editing, setEditing] = useState(false);
   if (drafting) {
     return (
@@ -4870,6 +4722,11 @@ function DraftReview({ draft, edited, onEditChange, changelog, checks, onCheckCh
         Read through carefully. Anywhere you see [PARENT TO ADD: …] is a spot
         you need to fill in before filing. Click "Edit directly" to make changes.
       </p>
+      <p className="help">
+        This draft was run through a second pass to soften any legal jargon and
+        keep it in your voice. Read it over and tell me if anything still sounds
+        off — I can revise.
+      </p>
 
       {editing ? (
         <div className="draft-paper">
@@ -4891,17 +4748,6 @@ function DraftReview({ draft, edited, onEditChange, changelog, checks, onCheckCh
           Regenerate draft
         </button>
       </div>
-
-      {changelog && changelog.length > 0 && (
-        <div className="changelog">
-          <p className="changelog-title">What we cleaned up in the second pass</p>
-          {changelog.map((c, i) => (
-            <div key={i} className="changelog-item">
-              <span>{c}</span>
-            </div>
-          ))}
-        </div>
-      )}
 
       <div className="review-checks">
         <h4 style={{ fontFamily: "Fraunces, serif", fontWeight: 500, fontSize: 16, margin: "0 0 4px" }}>
@@ -4949,20 +4795,91 @@ function DraftReview({ draft, edited, onEditChange, changelog, checks, onCheckCh
   );
 }
 
-function LetterFieldsForm({ values, onChange, onSubmit, neededFor, childFirstName }) {
-  const set = (k, v) => onChange((p) => ({ ...p, [k]: v }));
-  const canSubmit = values.parent_full_name.trim() && values.child_full_name.trim();
+// Exact-spelling identity inputs. These are the only things collected by a form;
+// every substantive fact lives in the chat-gathered intake.
+const FORMAL_FIELD_DEFS = {
+  parent_full_name: { label: "Your full legal name", placeholder: "e.g., Sarah Goldberg" },
+  parent_address: { label: "Your mailing address", placeholder: "123 Main St, New Rochelle, NY 10801" },
+  parent_email: { label: "Email", type: "email" },
+  parent_phone: { label: "Phone" },
+  child_full_name: { label: "Your child's full legal name", placeholder: "e.g., Jacob Goldberg" },
+  child_dob: { label: "Your child's date of birth", type: "date" },
+};
 
-  // Pre-fill child's full name field with first name from intake if blank
+// One form for both the lighter letters (two names) and the full complaint (the
+// full signature-block set). mode="letters" | "complaint" selects the field set,
+// the required subset, and the framing copy. Writes into the shared formalFields
+// store, so a name typed for a letter pre-populates the complaint and vice versa.
+function FormalFieldsForm({ values, onChange, onSubmit, onCancel, mode, neededFor, childFirstName }) {
+  const set = (k, v) => onChange((p) => ({ ...p, [k]: v }));
+
+  const fields = mode === "complaint"
+    ? ["parent_full_name", "parent_address", "parent_email", "parent_phone", "child_full_name", "child_dob"]
+    : ["parent_full_name", "child_full_name"];
+  const required = mode === "complaint"
+    ? ["parent_full_name", "parent_address", "child_full_name"]
+    : ["parent_full_name", "child_full_name"];
+  const canSubmit = required.every((k) => (values[k] || "").trim());
+
+  // Pre-fill child's full name with the first name from chat, if blank.
   useEffect(() => {
-    if (childFirstName && !values.child_full_name) {
-      set("child_full_name", childFirstName + " ");
-    }
+    if (childFirstName && !values.child_full_name) set("child_full_name", childFirstName + " ");
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [childFirstName]);
 
-  const labelList = neededFor.map((id) => OUTPUT_LIBRARY[id]?.label).filter(Boolean).join(", ");
+  const renderField = (k) => {
+    const def = FORMAL_FIELD_DEFS[k];
+    let label = def.label;
+    let placeholder = def.placeholder;
+    if (k === "child_full_name" && childFirstName) {
+      label = childFirstName + "'s full legal name";
+      placeholder = `${childFirstName} Goldberg`;
+    }
+    if (k === "child_dob" && childFirstName) label = childFirstName + "'s date of birth";
+    return (
+      <div className="field" key={k}>
+        <label>{label}</label>
+        <input
+          type={def.type || "text"}
+          value={values[k] || ""}
+          onChange={(e) => set(k, e.target.value)}
+          placeholder={placeholder}
+        />
+      </div>
+    );
+  };
 
+  if (mode === "complaint") {
+    return (
+      <div className="stage-block">
+        <div className="stage-eyebrow">Last step before drafting</div>
+        <h3 className="stage-title">A few formal details.</h3>
+        <p className="stage-lede">
+          We need these for the caption and signature block of the complaint —
+          the exact names and contact details that go on a filed document. The
+          remedy and everything else we've already worked out in the chat. P.O.
+          box is fine for the address.
+        </p>
+        <div className="drafter-form">
+          <div className="drafter-section">
+            <h4>For the caption and signature</h4>
+            <p className="help">Required by NY procedure to identify who is filing on whose behalf.</p>
+            {fields.map(renderField)}
+          </div>
+          <div style={{ display: "flex", gap: 10, marginTop: 16 }}>
+            <button className="btn btn-primary" onClick={onSubmit} disabled={!canSubmit}>
+              Generate the draft
+            </button>
+            {onCancel && (
+              <button className="btn btn-ghost" onClick={onCancel}>Cancel</button>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  const labelList = (neededFor || []).map((id) => OUTPUT_LIBRARY[id]?.label).filter(Boolean).join(", ");
   return (
     <div className="letter-fields-card">
       <h4>One last thing — full legal names for the letterhead</h4>
@@ -4972,22 +4889,7 @@ function LetterFieldsForm({ values, onChange, onSubmit, neededFor, childFirstNam
       <p className="help" style={{ marginTop: -8 }}>
         For: {labelList}.
       </p>
-      <div className="field">
-        <label>Your full legal name</label>
-        <input
-          value={values.parent_full_name}
-          onChange={(e) => set("parent_full_name", e.target.value)}
-          placeholder="e.g., Sarah Goldberg"
-        />
-      </div>
-      <div className="field">
-        <label>{childFirstName ? childFirstName + "'s full legal name" : "Your child's full legal name"}</label>
-        <input
-          value={values.child_full_name}
-          onChange={(e) => set("child_full_name", e.target.value)}
-          placeholder={childFirstName ? `${childFirstName} Goldberg` : "e.g., Jacob Goldberg"}
-        />
-      </div>
+      {fields.map(renderField)}
       <button className="btn btn-primary" onClick={onSubmit} disabled={!canSubmit}>
         Generate the documents
       </button>
@@ -5550,12 +5452,20 @@ function ChatTool() {
   const [outputsRequested, setOutputsRequested] = useState([]);
   const [outputs, setOutputs] = useState({});
   const [outputsLoading, setOutputsLoading] = useState({});
-  // Minimum fields the parent provides for letter outputs (full name, etc.)
-  const [letterFields, setLetterFields] = useState({
+  // Formal, exact-spelling identity fields the parent types into a form — never
+  // gathered in chat (the canonical-intake split: substantive facts live in
+  // `intake`, transcription-only identity lives here). Lighter outputs use the
+  // two name fields; full_complaint uses all six. Injected read-only into the
+  // chat's system context (see processCall) so the chat never re-asks them.
+  const [formalFields, setFormalFields] = useState({
     parent_full_name: "",
+    parent_address: "",
+    parent_email: "",
+    parent_phone: "",
     child_full_name: "",
+    child_dob: "",
   });
-  const [letterFieldsCollected, setLetterFieldsCollected] = useState(false);
+  const [formalFieldsCollected, setFormalFieldsCollected] = useState(false);
 
   // IEP upload + review
   const [iepFileName, setIepFileName] = useState(null);
@@ -5578,25 +5488,11 @@ function ChatTool() {
   const [triageResult, setTriageResult] = useState(null);
   const [triageLoading, setTriageLoading] = useState(false);
 
-  // Drafter stage
-  const [drafterFormOpen, setDrafterFormOpen] = useState(false);
-  const [drafterForm, setDrafterForm] = useState({
-    parentName: "",
-    parentAddress: "",
-    parentEmail: "",
-    parentPhone: "",
-    studentFullName: "",
-    studentDOB: "",
-    districtName: "",
-    remedy: "",
-    priorWritten: "",
-    evidence: [],
-    pendency: "not_asserting",
-    pendencyDetails: "",
-  });
+  // Full-complaint stage. The identity fields live in formalFields (shared with
+  // lighter outputs); this flag just toggles the formal-details form open.
+  const [fullComplaintFormOpen, setFullComplaintFormOpen] = useState(false);
   const [drafting, setDrafting] = useState(false);
   const [draft, setDraft] = useState(null);
-  const [draftChangelog, setDraftChangelog] = useState([]);
   const [draftEdited, setDraftEdited] = useState(null); // user edits override
   const [reviewChecks, setReviewChecks] = useState({
     accuracy: false,
@@ -5631,18 +5527,19 @@ function ChatTool() {
             if (saved.assessmentRequested) setAssessmentRequested(saved.assessmentRequested);
             if (saved.outputsRequested) setOutputsRequested(saved.outputsRequested);
             if (saved.outputs) setOutputs(saved.outputs);
-            if (saved.letterFields) setLetterFields((f) => ({ ...f, ...saved.letterFields }));
-            if (saved.letterFieldsCollected) setLetterFieldsCollected(saved.letterFieldsCollected);
+            // Migrate the pre-canonical-intake `letterFields` blob into formalFields.
+            const savedFormal = saved.formalFields || saved.letterFields;
+            if (savedFormal) setFormalFields((f) => ({ ...f, ...savedFormal }));
+            if (saved.formalFieldsCollected || saved.letterFieldsCollected)
+              setFormalFieldsCollected(saved.formalFieldsCollected || saved.letterFieldsCollected);
             if (saved.iepFileName) setIepFileName(saved.iepFileName);
             if (saved.iepExtraction) setIepExtraction(saved.iepExtraction);
             if (saved.iepFlags) setIepFlags(saved.iepFlags);
             if (saved.iepFlagAnswers) setIepFlagAnswers(saved.iepFlagAnswers);
             if (saved.uploadedDocs) setUploadedDocs(saved.uploadedDocs);
             if (saved.triageResult) setTriageResult(saved.triageResult);
-            if (saved.drafterFormOpen) setDrafterFormOpen(saved.drafterFormOpen);
-            if (saved.drafterForm) setDrafterForm((d) => ({ ...d, ...saved.drafterForm }));
+            if (saved.fullComplaintFormOpen || saved.drafterFormOpen) setFullComplaintFormOpen(true);
             if (saved.draft) setDraft(saved.draft);
-            if (saved.draftChangelog) setDraftChangelog(saved.draftChangelog);
             if (saved.draftEdited) setDraftEdited(saved.draftEdited);
             if (saved.reviewChecks) setReviewChecks((r) => ({ ...r, ...saved.reviewChecks }));
           }
@@ -5666,9 +5563,9 @@ function ChatTool() {
             STORAGE_KEY,
             JSON.stringify({
               messages, intake, chatState, waitChecks, checklist, checkedItems,
-              triageResult, drafterFormOpen, drafterForm, draft, draftChangelog, draftEdited, reviewChecks,
+              triageResult, fullComplaintFormOpen, draft, draftEdited, reviewChecks,
               assessmentRequested,
-              outputsRequested, outputs, letterFields, letterFieldsCollected,
+              outputsRequested, outputs, formalFields, formalFieldsCollected,
               iepFileName, iepExtraction, iepFlags, iepFlagAnswers,
               uploadedDocs,
             })
@@ -5678,7 +5575,7 @@ function ChatTool() {
         // Save failed — silent
       }
     })();
-  }, [loaded, messages, intake, chatState, waitChecks, checklist, checkedItems, triageResult, drafterFormOpen, drafterForm, draft, draftChangelog, draftEdited, reviewChecks, assessmentRequested, outputsRequested, outputs, letterFields, letterFieldsCollected, iepFileName, iepExtraction, iepFlags, iepFlagAnswers, uploadedDocs]);
+  }, [loaded, messages, intake, chatState, waitChecks, checklist, checkedItems, triageResult, fullComplaintFormOpen, draft, draftEdited, reviewChecks, assessmentRequested, outputsRequested, outputs, formalFields, formalFieldsCollected, iepFileName, iepExtraction, iepFlags, iepFlagAnswers, uploadedDocs]);
 
   // Note: the personalized document checklist is now generated as part of the
   // outputs library (id "document_checklist") when the parent requests it,
@@ -5713,19 +5610,6 @@ function ChatTool() {
     }, 200);
   }, [outputs, assessmentRequested]);
 
-  // Pre-fill drafter form with what we already know when it first opens
-  useEffect(() => {
-    if (!drafterFormOpen) return;
-    setDrafterForm((d) => ({
-      ...d,
-      districtName: d.districtName || intake.district_name || "",
-      studentFullName: d.studentFullName ||
-        (intake.student_first_name ? intake.student_first_name + " " : ""),
-      evidence: d.evidence.length > 0 ? d.evidence : (intake.evidence_available || []),
-    }));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [drafterFormOpen]);
-
   // ============================================================================
   // OUTPUT LIBRARY GENERATION
   // ============================================================================
@@ -5741,8 +5625,8 @@ function ChatTool() {
     const today = new Date().toISOString().slice(0, 10);
     const sharedContext = {
       today,
-      parent_full_name: letterFields.parent_full_name || "[PARENT TO ADD: full name]",
-      child_full_name: letterFields.child_full_name || "[PARENT TO ADD: child's full name]",
+      parent_full_name: formalFields.parent_full_name || "[PARENT TO ADD: full name]",
+      child_full_name: formalFields.child_full_name || "[PARENT TO ADD: child's full name]",
       captured_intake: intake,
       district_name: intake.district_name || "[PARENT TO ADD: district name]",
       chat_excerpt: messages
@@ -5808,7 +5692,7 @@ function ChatTool() {
     const pendingLetters = outputsRequested.filter(
       (id) => outputNeedsLetterFields(id) && !outputs[id] && !outputsLoading[id]
     );
-    if (pendingLetters.length > 0 && !letterFieldsCollected) return;
+    if (pendingLetters.length > 0 && !formalFieldsCollected) return;
     for (const id of outputsRequested) {
       if (id === "full_complaint") continue;
       if (!outputs[id] && !outputsLoading[id]) {
@@ -5816,7 +5700,7 @@ function ChatTool() {
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [outputsRequested, letterFieldsCollected, loaded]);
+  }, [outputsRequested, formalFieldsCollected, loaded]);
 
   // ============================================================================
   // IEP UPLOAD PROCESSING
@@ -5974,22 +5858,23 @@ function ChatTool() {
     setIepProcessing(null);
   };
 
-  const runDrafter = async (formData) => {
+  const runDrafter = async () => {
     setError(null);
     setDrafting(true);
     try {
       const today = new Date().toISOString().slice(0, 10);
       const fullPayload = {
         today,
+        // Identity from the form (exact spelling); everything else from intake.
         parent: {
-          full_name: formData.parentName,
-          address: formData.parentAddress,
-          email: formData.parentEmail,
-          phone: formData.parentPhone,
+          full_name: formalFields.parent_full_name,
+          address: formalFields.parent_address,
+          email: formalFields.parent_email,
+          phone: formalFields.parent_phone,
         },
         student: {
-          full_name: formData.studentFullName,
-          date_of_birth: formData.studentDOB,
+          full_name: formalFields.child_full_name,
+          date_of_birth: formalFields.child_dob,
           first_name: intake.student_first_name,
           age: intake.student_age,
           grade: intake.student_grade,
@@ -5997,7 +5882,7 @@ function ChatTool() {
           classification: intake.student_classification,
         },
         district: {
-          name: formData.districtName,
+          name: intake.district_name || "[PARENT TO ADD: district name]",
           is_nyc_doe: intake.is_nyc_doe,
         },
         captured_intake: intake,
@@ -6009,25 +5894,32 @@ function ChatTool() {
           .slice(-30)
           .map((m) => `${m.role === "user" ? "Parent" : "Assistant"}: ${m.content}`)
           .join("\n\n"),
-        remedy: formData.remedy,
-        prior_written_communications: formData.priorWritten,
-        evidence_parent_has: formData.evidence,
-        pendency_assertion: formData.pendency,
-        pendency_details: formData.pendencyDetails,
+        // Substantive content now comes from the chat-gathered intake, not the
+        // form — the form collects only exact-spelling identity (see Commit 4).
+        remedy: intake.remedy_sought,
+        prior_written_communications: intake.prior_written_detail,
+        evidence_parent_has: intake.evidence_available || [],
+        pendency_assertion: intake.pendency_assertion,
+        pendency_details: intake.pendency_details,
+        key_dates: intake.key_dates || null,
       };
 
-      // Stage 1: generate draft
+      // Stage 1: generate draft. 6000 tokens — a long multi-issue complaint can
+      // approach the old 4000 cap and silently truncate mid-sentence.
       const stage1 = await callClaudeForText(
         DRAFTER_PROMPT,
         "Draft the due process complaint based on the following information. Return only the letter text.\n\n" +
-          JSON.stringify(fullPayload, null, 2)
+          JSON.stringify(fullPayload, null, 2),
+        6000
       );
 
-      // Stage 2: de-lawyer
-      const cleaned = await callClaudeForJSON(DELAWYER_PROMPT, stage1);
+      // Stage 2: de-lawyer — plain text, not JSON. The cleaned draft is returned
+      // directly, so there's no JSON round-trip to truncate or mis-escape (the
+      // old "Could not parse JSON" failure on the headline output). Same budget
+      // as stage 1, since it reproduces the whole draft.
+      const cleaned = await callClaudeForText(DELAWYER_PROMPT, stage1, 6000);
 
-      setDraft(cleaned.cleaned_draft || stage1);
-      setDraftChangelog(cleaned.changes_made || []);
+      setDraft(cleaned || stage1);
       setDraftEdited(null);
       setReviewChecks({ accuracy: false, dates: false, remedy: false });
     } catch (e) {
@@ -6081,6 +5973,23 @@ function ChatTool() {
       CHAT_ADVOCATE_PROMPT +
       "\n\n--- INTAKE STATE SO FAR ---\n" +
       JSON.stringify(intake, null, 2);
+    // Formal identity fields the parent already typed into a form this session.
+    // Surface them so the chat doesn't re-ask — and so it doesn't ask in chat
+    // for the ones the form (not the chat) is responsible for collecting.
+    const collectedFormal = [
+      ["Parent's full name", formalFields.parent_full_name],
+      ["Parent's address", formalFields.parent_address],
+      ["Parent's email", formalFields.parent_email],
+      ["Parent's phone", formalFields.parent_phone],
+      ["Child's full name", formalFields.child_full_name],
+      ["Child's date of birth", formalFields.child_dob],
+    ].filter(([, v]) => v && String(v).trim());
+    if (collectedFormal.length > 0) {
+      baseSystem +=
+        "\n\n--- ALREADY COLLECTED (do not re-ask these — the parent typed them into the form) ---\n" +
+        collectedFormal.map(([k, v]) => `- ${k}: ${v}`).join("\n") +
+        "\nIf you need other identity fields for a specific output, the form below will collect them; do not ask for them in chat.";
+    }
     const docsBlock = formatDocsForPrompt(docs);
     if (docsBlock) {
       baseSystem += "\n\n--- UPLOADED DOCUMENTS ---\n" + docsBlock;
@@ -6250,23 +6159,19 @@ function ChatTool() {
     setChecklist(null);
     setCheckedItems({});
     setTriageResult(null);
-    setDrafterFormOpen(false);
-    setDrafterForm({
-      parentName: "", parentAddress: "", parentEmail: "", parentPhone: "",
-      studentFullName: "", studentDOB: "", districtName: "",
-      remedy: "", priorWritten: "", evidence: [],
-      pendency: "not_asserting", pendencyDetails: "",
-    });
+    setFullComplaintFormOpen(false);
     setDraft(null);
-    setDraftChangelog([]);
     setDraftEdited(null);
     setReviewChecks({ accuracy: false, dates: false, remedy: false });
     setAssessmentRequested(false);
     setOutputsRequested([]);
     setOutputs({});
     setOutputsLoading({});
-    setLetterFields({ parent_full_name: "", child_full_name: "" });
-    setLetterFieldsCollected(false);
+    setFormalFields({
+      parent_full_name: "", parent_address: "", parent_email: "",
+      parent_phone: "", child_full_name: "", child_dob: "",
+    });
+    setFormalFieldsCollected(false);
     setIepFileName(null);
     setIepExtraction(null);
     setIepFlags(null);
@@ -6492,16 +6397,17 @@ function ChatTool() {
           </div>
 
         {/* LETTER FIELDS PROMPT — first, so the parent can complete and see outputs ASAP */}
-        {assessmentRequested && !letterFieldsCollected && (() => {
+        {assessmentRequested && !formalFieldsCollected && (() => {
           const pending = outputsRequested.filter(
             (id) => OUTPUT_LIBRARY[id]?.min_fields?.length > 0 && id !== "full_complaint" && !outputs[id] && !outputsLoading[id]
           );
           if (pending.length === 0) return null;
           return (
-            <LetterFieldsForm
-              values={letterFields}
-              onChange={setLetterFields}
-              onSubmit={() => setLetterFieldsCollected(true)}
+            <FormalFieldsForm
+              mode="letters"
+              values={formalFields}
+              onChange={setFormalFields}
+              onSubmit={() => setFormalFieldsCollected(true)}
               neededFor={pending}
               childFirstName={intake.student_first_name}
             />
@@ -6531,27 +6437,32 @@ function ChatTool() {
             the chat flow — the chat does this conversationally now. The component
             is preserved for the future "Quick IEP assessment" entry point. */}
 
-        {/* FULL COMPLAINT FLOW — triggered when full_complaint is requested */}
-        {assessmentRequested && outputsRequested.includes("full_complaint") && !drafterFormOpen && !draft && !drafting && (
+        {/* FULL COMPLAINT FLOW — triggered when full_complaint is requested. The
+            remedy and substance are gathered + confirmed in the chat; the form
+            below collects only the exact-spelling signature-block identity. */}
+        {assessmentRequested && outputsRequested.includes("full_complaint") && !fullComplaintFormOpen && !draft && !drafting && (
           <div className="ready-card" style={{ marginTop: 20 }}>
             <h4>Ready to prepare the full complaint?</h4>
             <p>
-              For the full draft I'll need a few formal details — your full
-              name, address, your child's full name and DOB, and a clear
-              statement of what you're asking for.
+              I have what you're asking for and the rest of your situation from
+              our chat. For the filed document I just need a few exact details —
+              your full name, address, email and phone, and your child's full
+              name and date of birth.
             </p>
-            <button className="btn btn-primary" onClick={() => setDrafterFormOpen(true)}>
+            <button className="btn btn-primary" onClick={() => setFullComplaintFormOpen(true)}>
               Continue
             </button>
           </div>
         )}
 
-        {drafterFormOpen && !draft && !drafting && (
-          <DrafterForm
-            values={drafterForm}
-            onChange={setDrafterForm}
-            onSubmit={() => runDrafter(drafterForm)}
-            onCancel={() => setDrafterFormOpen(false)}
+        {fullComplaintFormOpen && !draft && !drafting && (
+          <FormalFieldsForm
+            mode="complaint"
+            values={formalFields}
+            onChange={setFormalFields}
+            onSubmit={() => runDrafter()}
+            onCancel={() => setFullComplaintFormOpen(false)}
+            childFirstName={intake.student_first_name}
           />
         )}
 
@@ -6560,10 +6471,9 @@ function ChatTool() {
             draft={draft}
             edited={draftEdited}
             onEditChange={setDraftEdited}
-            changelog={draftChangelog}
             checks={reviewChecks}
             onCheckChange={(k, v) => setReviewChecks((r) => ({ ...r, [k]: v }))}
-            onRegenerate={() => runDrafter(drafterForm)}
+            onRegenerate={() => runDrafter()}
             drafting={drafting}
           />
         )}

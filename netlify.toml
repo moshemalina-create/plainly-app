@@ -15,10 +15,3 @@
 # timing out. (Free tier max is 26s; paid plans allow more.)
 [functions."claude"]
   timeout = 26
-
-# Function endpoint passthrough
-[[redirects]]
-  from = "/.netlify/functions/*"
-  to = "/.netlify/functions/:splat"
-  status = 200
-  force = true
