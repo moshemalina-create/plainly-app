@@ -4710,43 +4710,22 @@ function TriageSection({ result, loading }) {
 }
 
 function DrafterForm({ values, onChange, onSubmit, onCancel }) {
-  const evidenceOptions = [
-    { id: "current_iep", label: "Current IEP" },
-    { id: "prior_ieps", label: "Prior IEPs" },
-    { id: "private_evaluation", label: "Private evaluation" },
-    { id: "district_evaluation", label: "District evaluation" },
-    { id: "progress_reports", label: "Progress reports" },
-    { id: "report_cards", label: "Report cards" },
-    { id: "emails", label: "Emails with district" },
-    { id: "pwn", label: "Prior written notice from district" },
-    { id: "meeting_notes", label: "CSE meeting notes" },
-    { id: "provider_letters", label: "Provider/therapist letters" },
-    { id: "medical", label: "Medical records" },
-  ];
-
   const set = (k, v) => onChange((prev) => ({ ...prev, [k]: v }));
-  const toggleEvidence = (id) =>
-    onChange((prev) => ({
-      ...prev,
-      evidence: prev.evidence.includes(id)
-        ? prev.evidence.filter((x) => x !== id)
-        : [...prev.evidence, id],
-    }));
 
   const canSubmit =
     values.parentName.trim() &&
     values.parentAddress.trim() &&
     values.studentFullName.trim() &&
-    values.districtName.trim() &&
-    values.remedy.trim();
+    values.districtName.trim();
 
   return (
     <div className="stage-block">
       <div className="stage-eyebrow">Last step before drafting</div>
       <h3 className="stage-title">A few formal details.</h3>
       <p className="stage-lede">
-        We need these for the caption of the complaint and to spell out exactly
-        what you're asking for. P.O. box is fine for the address.
+        We need these for the caption of the complaint — the exact names that go
+        on a filed document. The remedy and the rest we've already worked out in
+        the chat. P.O. box is fine for the address.
       </p>
 
       <div className="drafter-form">
@@ -4785,71 +4764,6 @@ function DrafterForm({ values, onChange, onSubmit, onCancel }) {
               <input value={values.districtName} onChange={(e) => set("districtName", e.target.value)} placeholder="New Rochelle City School District" />
             </div>
           </div>
-        </div>
-
-        <div className="drafter-section">
-          <h4>What you're asking for</h4>
-          <p className="help">
-            Be specific. Examples: "Find Abie eligible for an IEP and provide structured literacy intervention 5x/week." "Reimburse $42,000 in tuition for 2024-25." "Add 2 sessions of individual speech per week."
-          </p>
-          <div className="field">
-            <textarea rows={5} value={values.remedy} onChange={(e) => set("remedy", e.target.value)} />
-          </div>
-        </div>
-
-        <div className="drafter-section">
-          <h4>Have you put concerns in writing to the district?</h4>
-          <p className="help">If yes — when, what you said, what they said back. Often important for the complaint.</p>
-          <div className="field">
-            <textarea rows={4} value={values.priorWritten} onChange={(e) => set("priorWritten", e.target.value)} placeholder="e.g., Emailed CSE chair Jane Smith on 3/15/25 requesting more support. No response. Followed up 4/2/25..." />
-          </div>
-        </div>
-
-        <div className="drafter-section">
-          <h4>Documents you have</h4>
-          <p className="help">Pick anything you have — these get listed at the end of the complaint.</p>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-            {evidenceOptions.map((opt) => (
-              <button
-                key={opt.id}
-                type="button"
-                onClick={() => toggleEvidence(opt.id)}
-                style={{
-                  padding: "6px 12px",
-                  borderRadius: 999,
-                  border: "1px solid var(--border)",
-                  background: values.evidence.includes(opt.id) ? "var(--accent)" : "white",
-                  color: values.evidence.includes(opt.id) ? "white" : "var(--ink)",
-                  cursor: "pointer",
-                  fontSize: 13,
-                  fontFamily: "inherit",
-                }}
-              >
-                {opt.label}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        <div className="drafter-section">
-          <h4>Pendency (stay-put)</h4>
-          <p className="help">
-            Filing usually freezes your child's program in place during the case. If there's a specific program you want treated as "current" — e.g., the last IEP you both agreed on — say so.
-          </p>
-          <div className="field">
-            <select value={values.pendency} onChange={(e) => set("pendency", e.target.value)}>
-              <option value="not_asserting">Not asserting anything specific</option>
-              <option value="last_agreed_iep">The last IEP we agreed on</option>
-              <option value="prior_iho_order">A prior hearing officer order</option>
-              <option value="other">Something else</option>
-            </select>
-          </div>
-          {values.pendency !== "not_asserting" && (
-            <div className="field">
-              <label>Briefly describe</label>
-              <textarea rows={3} value={values.pendencyDetails} onChange={(e) => set("pendencyDetails", e.target.value)} />
-            </div>
-          )}
         </div>
 
         <div style={{ display: "flex", gap: 10, marginTop: 16 }}>
@@ -6048,11 +5962,14 @@ function ChatTool() {
           .slice(-30)
           .map((m) => `${m.role === "user" ? "Parent" : "Assistant"}: ${m.content}`)
           .join("\n\n"),
-        remedy: formData.remedy,
-        prior_written_communications: formData.priorWritten,
-        evidence_parent_has: formData.evidence,
-        pendency_assertion: formData.pendency,
-        pendency_details: formData.pendencyDetails,
+        // Substantive content now comes from the chat-gathered intake, not the
+        // form — the form collects only exact-spelling identity (see Commit 4).
+        remedy: intake.remedy_sought,
+        prior_written_communications: intake.prior_written_detail,
+        evidence_parent_has: intake.evidence_available || [],
+        pendency_assertion: intake.pendency_assertion,
+        pendency_details: intake.pendency_details,
+        key_dates: intake.key_dates || null,
       };
 
       // Stage 1: generate draft
