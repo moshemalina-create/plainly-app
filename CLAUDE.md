@@ -23,7 +23,41 @@ written long (advocate role, tone, document behavior, wait-checks,
 output library, attorney/uncertainty calibration) — voice was prioritized
 over brevity. **Revisit prompt length after some real usage**: if cost or
 latency becomes a concern, tighten it then, with behavior to measure
-against rather than trimming blind now.
+against rather than trimming blind now. The newest sections —
+`WHEN A FULL COMPLAINT IS ON THE TABLE` and `BEFORE YOU TRIGGER A FULL
+COMPLAINT` (added in `chat-as-canonical-intake`) — are the first
+candidates for that trim.
+
+### The chat is the canonical source of truth
+
+Everything substantive about the parent's situation lives in the
+chat-gathered `intake` (the `CHAT_ADVOCATE_PROMPT` schema, mirrored in
+`RESPONSE_TOOL`): the concerns, the remedy (`remedy_sought`), what's been
+put in writing (`prior_written_detail`), pendency, evidence, and the two
+legally load-bearing dates (`key_dates.most_recent_cse_date` /
+`ten_day_notice_date_sent`). Output prompts read from `intake`.
+
+The **only** thing a form collects is exact-spelling identity — parent and
+child full legal names, address, email, phone, child DOB — held in
+`formalFields` and rendered by the single `FormalFieldsForm` component
+(`mode="letters"` shows the two names; `mode="complaint"` shows all six).
+`formalFields` is injected read-only into the chat's system context in
+`processCall` so the chat never re-asks identity it already has, and never
+asks in chat for the fields the form owns.
+
+`full_complaint` is the one output with a **confirmation gate**: the chat
+restates the remedy and key dates and gets an explicit, unhedged yes
+before adding `full_complaint` to `outputs_to_generate`. `runDrafter` then
+reads substance from `intake` and identity from `formalFields`, and the
+de-lawyer pass (`DELAWYER_PROMPT`) cleans the voice. Lighter outputs
+trigger as soon as the parent accepts (the panel lets them edit).
+
+This replaced an earlier design where a heavy `DrafterForm` collected the
+remedy, prior-written history, pendency, and evidence independently of the
+chat — two surfaces with no shared state, which produced
+duplicate-question bugs (the chat re-asking what the form already learned).
+`DrafterForm` was **live code, now retired** in `chat-as-canonical-intake`
+— it is *not* part of the preserved pipeline below; don't go looking for it.
 
 ### Preserved: the quick-assessment pipeline (NOT dead code)
 
@@ -90,3 +124,22 @@ Implementation sketch when picked up: per-document-type extraction
 prompts, a unified evidence store keyed by document type, and a
 comparison stage that runs once at least one IEP plus at least one
 other document is present.
+
+### Small polish items (deferred)
+
+Named here so a future polish round has a concrete starting list. Both
+fell out of `chat-as-canonical-intake` and were consciously left out of
+scope:
+
+- **Remember contact details for returning parents.** `FormalFieldsForm`
+  could offer to persist the parent's exact-spelling identity
+  (`formalFields`) in local state so a returning parent doesn't re-type
+  their name/address/phone. Purely a convenience; no behavior change.
+- **Chat-triggered regeneration of the full complaint.** Today, if the
+  parent changes the remedy *after* a draft exists, `intake` updates but
+  the existing draft stays stale until they click **Regenerate** in the
+  draft panel (which re-reads `intake`). Regeneration is panel-driven, not
+  chat-driven — telling the chat "change the remedy and redo it" updates
+  the intake but doesn't re-run `runDrafter`. This matches pre-refactor
+  behavior (not a regression); wiring a chat-driven redraft for
+  `full_complaint` would close it.
