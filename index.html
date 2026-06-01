@@ -2957,10 +2957,7 @@ REWRITE IF YOU SEE
 
 DO NOT REWRITE: Parent's own words. Specific service amounts, dates, names, addresses, dollar figures. Remedy specificity. Bracketed [PARENT TO ADD: ...] placeholders.
 
-Return ONLY JSON (no fences):
-{"cleaned_draft": "string — cleaned draft as plain text", "changes_made": ["string", ...]}
-
-If no changes: changes_made = ["No changes needed — draft is already in parent voice."]`;
+Return ONLY the cleaned draft as plain text — the letter itself, ready to read. No JSON, no fences, no preamble, no commentary, no list of changes. If nothing needs changing, return the draft unchanged.`;
 
 // ============================================================================
 // RESPONSE TOOL — forces structured output via Anthropic tool_use
@@ -4224,28 +4221,6 @@ h1 em { font-style: italic; color: var(--accent); }
   resize: vertical;
   padding: 0;
 }
-.changelog {
-  background: var(--surface-2);
-  border-radius: 6px;
-  padding: 14px 18px;
-  margin-top: 14px;
-  font-size: 13.5px;
-}
-.changelog-title {
-  font-family: 'Fraunces', serif;
-  font-weight: 500;
-  font-size: 14px;
-  margin: 0 0 6px;
-  color: var(--ink);
-}
-.changelog-item {
-  padding: 3px 0;
-  color: var(--ink-muted);
-  display: flex;
-  gap: 8px;
-}
-.changelog-item::before { content: '·'; color: var(--accent); font-weight: 700; }
-
 .review-checks {
   background: var(--surface);
   border: 1px solid var(--border-soft);
@@ -4716,7 +4691,7 @@ function TriageSection({ result, loading }) {
   );
 }
 
-function DraftReview({ draft, edited, onEditChange, changelog, checks, onCheckChange, onRegenerate, drafting }) {
+function DraftReview({ draft, edited, onEditChange, checks, onCheckChange, onRegenerate, drafting }) {
   const [editing, setEditing] = useState(false);
   if (drafting) {
     return (
@@ -4747,6 +4722,11 @@ function DraftReview({ draft, edited, onEditChange, changelog, checks, onCheckCh
         Read through carefully. Anywhere you see [PARENT TO ADD: …] is a spot
         you need to fill in before filing. Click "Edit directly" to make changes.
       </p>
+      <p className="help">
+        This draft was run through a second pass to soften any legal jargon and
+        keep it in your voice. Read it over and tell me if anything still sounds
+        off — I can revise.
+      </p>
 
       {editing ? (
         <div className="draft-paper">
@@ -4768,17 +4748,6 @@ function DraftReview({ draft, edited, onEditChange, changelog, checks, onCheckCh
           Regenerate draft
         </button>
       </div>
-
-      {changelog && changelog.length > 0 && (
-        <div className="changelog">
-          <p className="changelog-title">What we cleaned up in the second pass</p>
-          {changelog.map((c, i) => (
-            <div key={i} className="changelog-item">
-              <span>{c}</span>
-            </div>
-          ))}
-        </div>
-      )}
 
       <div className="review-checks">
         <h4 style={{ fontFamily: "Fraunces, serif", fontWeight: 500, fontSize: 16, margin: "0 0 4px" }}>
@@ -5524,7 +5493,6 @@ function ChatTool() {
   const [fullComplaintFormOpen, setFullComplaintFormOpen] = useState(false);
   const [drafting, setDrafting] = useState(false);
   const [draft, setDraft] = useState(null);
-  const [draftChangelog, setDraftChangelog] = useState([]);
   const [draftEdited, setDraftEdited] = useState(null); // user edits override
   const [reviewChecks, setReviewChecks] = useState({
     accuracy: false,
@@ -5572,7 +5540,6 @@ function ChatTool() {
             if (saved.triageResult) setTriageResult(saved.triageResult);
             if (saved.fullComplaintFormOpen || saved.drafterFormOpen) setFullComplaintFormOpen(true);
             if (saved.draft) setDraft(saved.draft);
-            if (saved.draftChangelog) setDraftChangelog(saved.draftChangelog);
             if (saved.draftEdited) setDraftEdited(saved.draftEdited);
             if (saved.reviewChecks) setReviewChecks((r) => ({ ...r, ...saved.reviewChecks }));
           }
@@ -5596,7 +5563,7 @@ function ChatTool() {
             STORAGE_KEY,
             JSON.stringify({
               messages, intake, chatState, waitChecks, checklist, checkedItems,
-              triageResult, fullComplaintFormOpen, draft, draftChangelog, draftEdited, reviewChecks,
+              triageResult, fullComplaintFormOpen, draft, draftEdited, reviewChecks,
               assessmentRequested,
               outputsRequested, outputs, formalFields, formalFieldsCollected,
               iepFileName, iepExtraction, iepFlags, iepFlagAnswers,
@@ -5608,7 +5575,7 @@ function ChatTool() {
         // Save failed — silent
       }
     })();
-  }, [loaded, messages, intake, chatState, waitChecks, checklist, checkedItems, triageResult, fullComplaintFormOpen, draft, draftChangelog, draftEdited, reviewChecks, assessmentRequested, outputsRequested, outputs, formalFields, formalFieldsCollected, iepFileName, iepExtraction, iepFlags, iepFlagAnswers, uploadedDocs]);
+  }, [loaded, messages, intake, chatState, waitChecks, checklist, checkedItems, triageResult, fullComplaintFormOpen, draft, draftEdited, reviewChecks, assessmentRequested, outputsRequested, outputs, formalFields, formalFieldsCollected, iepFileName, iepExtraction, iepFlags, iepFlagAnswers, uploadedDocs]);
 
   // Note: the personalized document checklist is now generated as part of the
   // outputs library (id "document_checklist") when the parent requests it,
@@ -5937,18 +5904,22 @@ function ChatTool() {
         key_dates: intake.key_dates || null,
       };
 
-      // Stage 1: generate draft
+      // Stage 1: generate draft. 6000 tokens — a long multi-issue complaint can
+      // approach the old 4000 cap and silently truncate mid-sentence.
       const stage1 = await callClaudeForText(
         DRAFTER_PROMPT,
         "Draft the due process complaint based on the following information. Return only the letter text.\n\n" +
-          JSON.stringify(fullPayload, null, 2)
+          JSON.stringify(fullPayload, null, 2),
+        6000
       );
 
-      // Stage 2: de-lawyer
-      const cleaned = await callClaudeForJSON(DELAWYER_PROMPT, stage1);
+      // Stage 2: de-lawyer — plain text, not JSON. The cleaned draft is returned
+      // directly, so there's no JSON round-trip to truncate or mis-escape (the
+      // old "Could not parse JSON" failure on the headline output). Same budget
+      // as stage 1, since it reproduces the whole draft.
+      const cleaned = await callClaudeForText(DELAWYER_PROMPT, stage1, 6000);
 
-      setDraft(cleaned.cleaned_draft || stage1);
-      setDraftChangelog(cleaned.changes_made || []);
+      setDraft(cleaned || stage1);
       setDraftEdited(null);
       setReviewChecks({ accuracy: false, dates: false, remedy: false });
     } catch (e) {
@@ -6190,7 +6161,6 @@ function ChatTool() {
     setTriageResult(null);
     setFullComplaintFormOpen(false);
     setDraft(null);
-    setDraftChangelog([]);
     setDraftEdited(null);
     setReviewChecks({ accuracy: false, dates: false, remedy: false });
     setAssessmentRequested(false);
@@ -6501,7 +6471,6 @@ function ChatTool() {
             draft={draft}
             edited={draftEdited}
             onEditChange={setDraftEdited}
-            changelog={draftChangelog}
             checks={reviewChecks}
             onCheckChange={(k, v) => setReviewChecks((r) => ({ ...r, [k]: v }))}
             onRegenerate={() => runDrafter()}

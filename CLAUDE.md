@@ -127,9 +127,9 @@ other document is present.
 
 ### Small polish items (deferred)
 
-Named here so a future polish round has a concrete starting list. Both
-fell out of `chat-as-canonical-intake` and were consciously left out of
-scope:
+Named here so a future polish round has a concrete starting list. These
+fell out of `chat-as-canonical-intake` and the drafter-reliability fix
+and were consciously left out of scope:
 
 - **Remember contact details for returning parents.** `FormalFieldsForm`
   could offer to persist the parent's exact-spelling identity
@@ -143,3 +143,14 @@ scope:
   the intake but doesn't re-run `runDrafter`. This matches pre-refactor
   behavior (not a regression); wiring a chat-driven redraft for
   `full_complaint` would close it.
+- **JSON-parse robustness for the remaining JSON callers.** The drafter's
+  de-lawyer pass was moved to plain text to kill the "Could not parse JSON"
+  failure on the headline output, but `callClaudeForJSON` (chat path, IEP
+  flow, checklist/action-recommendation outputs) still uses `parseJSON`,
+  which hard-fails on trailing commas, literal control chars inside string
+  values, and truncated responses. A small robustness round could: tolerate
+  trailing commas and escape raw control chars before `JSON.parse`; pass
+  `opts.strictMaxTokens` where truncation matters; add one silent retry
+  before surfacing an error; and replace the generic parse-error text with
+  a "try again" message. Deferred deliberately to keep the drafter fix
+  scoped.
