@@ -32,12 +32,17 @@ create table if not exists public.cases (
 alter table public.cases enable row level security;
 
 -- Default-deny + per-user policies (no other policy exists on this table).
+-- drop-then-create so the whole script is safely re-runnable by hand.
+drop policy if exists "cases_select_own" on public.cases;
 create policy "cases_select_own" on public.cases
   for select using (auth.uid() = user_id);
+drop policy if exists "cases_insert_own" on public.cases;
 create policy "cases_insert_own" on public.cases
   for insert with check (auth.uid() = user_id);
+drop policy if exists "cases_update_own" on public.cases;
 create policy "cases_update_own" on public.cases
   for update using (auth.uid() = user_id) with check (auth.uid() = user_id);
+drop policy if exists "cases_delete_own" on public.cases;
 create policy "cases_delete_own" on public.cases
   for delete using (auth.uid() = user_id);
 
@@ -58,12 +63,16 @@ create index if not exists sessions_user_id_created_at_idx
 
 alter table public.sessions enable row level security;
 
+drop policy if exists "sessions_select_own" on public.sessions;
 create policy "sessions_select_own" on public.sessions
   for select using (auth.uid() = user_id);
+drop policy if exists "sessions_insert_own" on public.sessions;
 create policy "sessions_insert_own" on public.sessions
   for insert with check (auth.uid() = user_id);
+drop policy if exists "sessions_update_own" on public.sessions;
 create policy "sessions_update_own" on public.sessions
   for update using (auth.uid() = user_id) with check (auth.uid() = user_id);
+drop policy if exists "sessions_delete_own" on public.sessions;
 create policy "sessions_delete_own" on public.sessions
   for delete using (auth.uid() = user_id);
 
