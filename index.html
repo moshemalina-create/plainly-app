@@ -22,6 +22,8 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <!-- jsPDF for generating downloadable PDFs of letters/documents (exposes window.jspdf.jsPDF) -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<!-- Supabase JS (auth; exposes window.supabase.createClient). CDN-loaded to keep the single-file, build-free model. -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
   // Configure the PDF.js worker (must match the library version above)
   if (window.pdfjsLib) {
@@ -35,6 +37,69 @@
 <div class="boot-msg"><span class="pulse"></span><span class="pulse"></span><span class="pulse"></span><br/>Loading Plainly…</div>
 <script type="text/babel" data-presets="react">
 const { useState, useEffect, useRef } = React;
+
+// ============================================================================
+// AUTH (Supabase magic-link) — optional accounts. The anonymous path never
+// depends on this: if the client fails to load, authReady stays false and no
+// auth UI mounts, so Start works exactly as before.
+// ============================================================================
+const SUPABASE_URL = "https://fzlztzqdvxibxnnfoeyc.supabase.co";
+// Publishable (anon-equivalent) key. Public by design — security is RLS, not
+// secrecy. The service-role key is NOT here and never goes in the client.
+const SUPABASE_PUBLISHABLE_KEY = "sb_publishable_41fCnhgEDTpo3IuSpB9PVA_U1NRtf-l";
+// Recorded with each new account's consent. PLACEHOLDER wording until the owner
+// supplies the real consent text — going live on placeholder text is a launch
+// gate (see docs/accounts-persistence.md).
+const CONSENT_VERSION = "placeholder-2026-06";
+
+let sb = null;
+try {
+  if (typeof window !== "undefined" && window.supabase && window.supabase.createClient) {
+    sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
+      auth: {
+        // Implicit flow: tokens return in the URL hash, which works cross-device
+        // (the magic link can be opened on a different device than it was
+        // requested from). The hash-router collision is handled explicitly in
+        // the auth-callback path.
+        flowType: "implicit",
+        detectSessionInUrl: true,
+        persistSession: true,
+        autoRefreshToken: true,
+      },
+    });
+  }
+} catch (e) {
+  sb = null;
+}
+// True only when the client actually initialized. Gates every piece of auth UI.
+const authReady = !!sb;
+
+// Auth-state hook. Safe to call from multiple components — each gets its own
+// subscription. Returns the current session/user and a one-time loading flag.
+function useAuth() {
+  const [session, setSession] = useState(null);
+  const [authLoading, setAuthLoading] = useState(authReady);
+  useEffect(() => {
+    if (!sb) { setAuthLoading(false); return; }
+    let active = true;
+    sb.auth.getSession()
+      .then(({ data }) => { if (active) { setSession(data ? data.session : null); setAuthLoading(false); } })
+      .catch(() => { if (active) setAuthLoading(false); });
+    const { data: listener } = sb.auth.onAuthStateChange((_event, s) => {
+      if (active) setSession(s);
+    });
+    return () => {
+      active = false;
+      if (listener && listener.subscription) listener.subscription.unsubscribe();
+    };
+  }, []);
+  return { session, user: session ? session.user : null, authLoading };
+}
+
+async function authSignOut() {
+  if (sb) { try { await sb.auth.signOut(); } catch (e) {} }
+  go("/");
+}
 
 // ============================================================================
 // PLAINLY — SITE SHELL
@@ -1064,6 +1129,7 @@ const NAV_ITEMS = [
 ];
 
 function Header({ route }) {
+  const { user } = useAuth();
   return (
     <header className="site-header">
       <div className="site-header-inner">
@@ -1086,6 +1152,15 @@ function Header({ route }) {
             </a>
           ))}
         </nav>
+        {authReady && (
+          <a
+            href={user ? "#/account" : "#/login"}
+            onClick={(e) => { e.preventDefault(); go(user ? "/account" : "/login"); }}
+            style={{ marginRight: 14, fontSize: 14, color: "var(--ink-soft)", textDecoration: "none", whiteSpace: "nowrap" }}
+          >
+            {user ? "Account" : "Log in"}
+          </a>
+        )}
         <a
           href="#/start"
           className="header-cta"
@@ -6537,13 +6612,236 @@ function NotFoundPage() {
 // MAIN APP
 // ============================================================================
 
+// ============================================================================
+// PAGE: LOGIN — magic-link request + consent gate (Step 1 auth)
+// ============================================================================
+function LoginPage() {
+  const [email, setEmail] = useState("");
+  const [agreed, setAgreed] = useState(false);
+  const [status, setStatus] = useState("idle"); // idle | sending | sent | error
+  const [errMsg, setErrMsg] = useState("");
+
+  if (!authReady) {
+    return (
+      <div className="page fade-in">
+        <div className="eyebrow">Accounts</div>
+        <h1 className="display" style={{ fontSize: 38 }}>Accounts aren't available right now.</h1>
+        <p className="lede">You can still use Plainly without one — nothing about it requires an account.</p>
+        <button className="btn btn-primary" onClick={() => go("/start")}>Start a conversation</button>
+      </div>
+    );
+  }
+
+  const canSend = !!email.trim() && agreed && status !== "sending";
+
+  const send = async () => {
+    if (!canSend) return;
+    setStatus("sending");
+    setErrMsg("");
+    try {
+      const { error } = await sb.auth.signInWithOtp({
+        email: email.trim(),
+        options: {
+          // Return to whatever origin the request came from (prod or a preview).
+          emailRedirectTo: window.location.origin,
+          // Recorded as user_metadata only when the account is first created —
+          // exactly "consent at account creation". Ignored for existing users.
+          data: { consent_version: CONSENT_VERSION, consent_accepted_at: new Date().toISOString() },
+        },
+      });
+      if (error) {
+        setStatus("error");
+        setErrMsg(error.message || "Couldn't send the link. Try again in a moment.");
+      } else {
+        setStatus("sent");
+      }
+    } catch (e) {
+      setStatus("error");
+      setErrMsg((e && e.message) || "Couldn't send the link. Try again in a moment.");
+    }
+  };
+
+  if (status === "sent") {
+    return (
+      <div className="page fade-in">
+        <div className="eyebrow">Check your email</div>
+        <h1 className="display" style={{ fontSize: 38 }}>Your sign-in link is on its way.</h1>
+        <p className="lede">
+          We sent a one-time link to <strong>{email.trim()}</strong>. Open it to finish
+          signing in — on this device or any other. If it isn't there in a few minutes,
+          check spam, or send another.
+        </p>
+        <button className="btn btn-ghost" onClick={() => setStatus("idle")}>Use a different email</button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="page fade-in">
+      <div className="eyebrow">Save your case</div>
+      <h1 className="display" style={{ fontSize: 38 }}>Log in or create an account.</h1>
+      <p className="lede">
+        Enter your email and we'll send a one-time sign-in link — no password to remember.
+        New here? The same link creates your account.
+      </p>
+      <div className="card">
+        <div className="field">
+          <label>Email</label>
+          <input
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="you@example.com"
+            onKeyDown={(e) => { if (e.key === "Enter") send(); }}
+          />
+        </div>
+
+        {/* CONSENT GATE — PLACEHOLDER wording. The owner supplies the real consent
+            text before launch; going live on placeholder text is a launch gate
+            (see docs/accounts-persistence.md). */}
+        <label style={{ display: "flex", gap: 10, alignItems: "flex-start", margin: "4px 0 16px", fontSize: 14, lineHeight: 1.5, cursor: "pointer" }}>
+          <input type="checkbox" checked={agreed} onChange={(e) => setAgreed(e.target.checked)} style={{ marginTop: 3 }} />
+          <span>
+            <strong>[PLACEHOLDER — final consent wording to be supplied before launch.]</strong>{" "}
+            By creating an account I understand Plainly will store my case information — what I
+            tell it, documents it generates, and a short summary of documents I review — so I
+            can return to it later, and I agree to the terms of use and privacy policy.
+          </span>
+        </label>
+
+        {status === "error" && (
+          <p className="help" style={{ color: "var(--warn-deep)" }}>{errMsg}</p>
+        )}
+
+        <button className="btn btn-primary" onClick={send} disabled={!canSend}>
+          {status === "sending" ? "Sending…" : "Email me a sign-in link"}
+        </button>
+      </div>
+      <p className="muted" style={{ marginTop: 14 }}>
+        Prefer not to make an account?{" "}
+        <a href="#/start" onClick={(e) => { e.preventDefault(); go("/start"); }}>Use Plainly without one →</a>
+      </p>
+    </div>
+  );
+}
+
+// Shown during the implicit-flow magic-link return while the client parses the
+// session out of the URL hash. The App-level effect routes to /account on
+// success; here we just hold the screen (and surface an expired/used-link error).
+function AuthCallback() {
+  const { user } = useAuth();
+  const [slow, setSlow] = useState(false);
+  const hash = (typeof window !== "undefined" && window.location.hash) || "";
+  const hasError = hash.indexOf("error=") !== -1 || hash.indexOf("error_description=") !== -1;
+
+  // Covers the race where the session is already parsed before App's SIGNED_IN
+  // listener subscribed: as soon as a user is present on this screen, move on.
+  useEffect(() => {
+    if (user) go("/account");
+  }, [user]);
+
+  useEffect(() => {
+    const t = setTimeout(() => setSlow(true), 8000);
+    return () => clearTimeout(t);
+  }, []);
+
+  if (hasError) {
+    return (
+      <div className="page fade-in">
+        <div className="eyebrow">Sign-in</div>
+        <h1 className="display" style={{ fontSize: 34 }}>That link didn't work.</h1>
+        <p className="lede">It may have expired or already been used. Request a fresh one and try again.</p>
+        <button className="btn btn-primary" onClick={() => go("/login")}>Back to log in</button>
+      </div>
+    );
+  }
+  return (
+    <div className="page fade-in">
+      <div className="eyebrow">Signing you in</div>
+      <h1 className="display" style={{ fontSize: 34 }}>One moment…</h1>
+      <p className="lede">Finishing your sign-in.</p>
+      {slow && (
+        <p className="muted">
+          Taking longer than expected?{" "}
+          <a href="#/login" onClick={(e) => { e.preventDefault(); go("/login"); }}>Try logging in again</a>.
+        </p>
+      )}
+    </div>
+  );
+}
+
+// Account landing (Step 1 stub). No persistence yet — confirms sign-in, offers
+// the conversation and logout. Real case overview arrives in Step 2+.
+function AccountPage() {
+  const { user, authLoading } = useAuth();
+
+  if (!authReady) {
+    return (
+      <div className="page fade-in">
+        <div className="eyebrow">Account</div>
+        <h1 className="display" style={{ fontSize: 34 }}>Accounts aren't available right now.</h1>
+        <button className="btn btn-primary" onClick={() => go("/start")}>Start a conversation</button>
+      </div>
+    );
+  }
+  if (authLoading) {
+    return <div className="page fade-in"><p className="lede">Loading…</p></div>;
+  }
+  if (!user) {
+    return (
+      <div className="page fade-in">
+        <div className="eyebrow">Account</div>
+        <h1 className="display" style={{ fontSize: 34 }}>You're not signed in.</h1>
+        <p className="lede">Sign in to pick up where you left off.</p>
+        <button className="btn btn-primary" onClick={() => go("/login")}>Log in</button>
+      </div>
+    );
+  }
+  return (
+    <div className="page fade-in">
+      <div className="eyebrow">Account</div>
+      <h1 className="display" style={{ fontSize: 38 }}>You're signed in.</h1>
+      <p className="lede">
+        Signed in as <strong>{user.email}</strong>. Saving and reopening your case is
+        coming soon — for now you can head into the conversation.
+      </p>
+      <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+        <button className="btn btn-primary" onClick={() => go("/start")}>Go to the conversation</button>
+        <button className="btn btn-ghost" onClick={authSignOut}>Log out</button>
+      </div>
+    </div>
+  );
+}
+
 function App() {
   const route = useRoute();
 
+  // After a magic-link sign-in completes, land on the account page. SIGNED_IN
+  // fires on a fresh sign-in (not on a restored session), so returning users who
+  // reload elsewhere aren't yanked here.
+  useEffect(() => {
+    if (!sb) return;
+    const { data: listener } = sb.auth.onAuthStateChange((event) => {
+      if (event === "SIGNED_IN") go("/account");
+    });
+    return () => { if (listener && listener.subscription) listener.subscription.unsubscribe(); };
+  }, []);
+
   let page;
+  // Implicit-flow magic-link return: tokens (or an error) come back in the URL
+  // hash, colliding with the hash router. Hold a sign-in screen until the client
+  // parses the session and the effect above routes onward.
+  const isAuthCallback =
+    route.indexOf("access_token=") !== -1 ||
+    route.indexOf("error_description=") !== -1 ||
+    route.indexOf("error=") !== -1;
+  if (isAuthCallback) {
+    page = <AuthCallback />;
+  } else {
   switch (route) {
     case "/": page = <HomePage />; break;
     case "/start": page = <StartPage />; break;
+    case "/login": page = <LoginPage />; break;
     case "/how": page = <HowPage />; break;
     case "/who": page = <WhoPage />; break;
     case "/faq": page = <FaqPage />; break;
@@ -6551,7 +6849,9 @@ function App() {
     case "/about": page = <AboutPage />; break;
     case "/contact": page = <ContactPage />; break;
     case "/privacy": page = <PrivacyPage />; break;
+    case "/account": page = <AccountPage />; break;
     default: page = <NotFoundPage />;
+  }
   }
 
   return (
