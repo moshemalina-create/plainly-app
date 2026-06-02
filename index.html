@@ -74,6 +74,33 @@ try {
 // True only when the client actually initialized. Gates every piece of auth UI.
 const authReady = !!sb;
 
+// Auth-state hook. Safe to call from multiple components — each gets its own
+// subscription. Returns the current session/user and a one-time loading flag.
+function useAuth() {
+  const [session, setSession] = useState(null);
+  const [authLoading, setAuthLoading] = useState(authReady);
+  useEffect(() => {
+    if (!sb) { setAuthLoading(false); return; }
+    let active = true;
+    sb.auth.getSession()
+      .then(({ data }) => { if (active) { setSession(data ? data.session : null); setAuthLoading(false); } })
+      .catch(() => { if (active) setAuthLoading(false); });
+    const { data: listener } = sb.auth.onAuthStateChange((_event, s) => {
+      if (active) setSession(s);
+    });
+    return () => {
+      active = false;
+      if (listener && listener.subscription) listener.subscription.unsubscribe();
+    };
+  }, []);
+  return { session, user: session ? session.user : null, authLoading };
+}
+
+async function authSignOut() {
+  if (sb) { try { await sb.auth.signOut(); } catch (e) {} }
+  go("/");
+}
+
 // ============================================================================
 // PLAINLY — SITE SHELL
 // ============================================================================
@@ -1102,6 +1129,7 @@ const NAV_ITEMS = [
 ];
 
 function Header({ route }) {
+  const { user } = useAuth();
   return (
     <header className="site-header">
       <div className="site-header-inner">
@@ -1126,11 +1154,11 @@ function Header({ route }) {
         </nav>
         {authReady && (
           <a
-            href="#/login"
-            onClick={(e) => { e.preventDefault(); go("/login"); }}
+            href={user ? "#/account" : "#/login"}
+            onClick={(e) => { e.preventDefault(); go(user ? "/account" : "/login"); }}
             style={{ marginRight: 14, fontSize: 14, color: "var(--ink-soft)", textDecoration: "none", whiteSpace: "nowrap" }}
           >
-            Log in
+            {user ? "Account" : "Log in"}
           </a>
         )}
         <a
@@ -6697,10 +6725,119 @@ function LoginPage() {
   );
 }
 
+// Shown during the implicit-flow magic-link return while the client parses the
+// session out of the URL hash. The App-level effect routes to /account on
+// success; here we just hold the screen (and surface an expired/used-link error).
+function AuthCallback() {
+  const { user } = useAuth();
+  const [slow, setSlow] = useState(false);
+  const hash = (typeof window !== "undefined" && window.location.hash) || "";
+  const hasError = hash.indexOf("error=") !== -1 || hash.indexOf("error_description=") !== -1;
+
+  // Covers the race where the session is already parsed before App's SIGNED_IN
+  // listener subscribed: as soon as a user is present on this screen, move on.
+  useEffect(() => {
+    if (user) go("/account");
+  }, [user]);
+
+  useEffect(() => {
+    const t = setTimeout(() => setSlow(true), 8000);
+    return () => clearTimeout(t);
+  }, []);
+
+  if (hasError) {
+    return (
+      <div className="page fade-in">
+        <div className="eyebrow">Sign-in</div>
+        <h1 className="display" style={{ fontSize: 34 }}>That link didn't work.</h1>
+        <p className="lede">It may have expired or already been used. Request a fresh one and try again.</p>
+        <button className="btn btn-primary" onClick={() => go("/login")}>Back to log in</button>
+      </div>
+    );
+  }
+  return (
+    <div className="page fade-in">
+      <div className="eyebrow">Signing you in</div>
+      <h1 className="display" style={{ fontSize: 34 }}>One moment…</h1>
+      <p className="lede">Finishing your sign-in.</p>
+      {slow && (
+        <p className="muted">
+          Taking longer than expected?{" "}
+          <a href="#/login" onClick={(e) => { e.preventDefault(); go("/login"); }}>Try logging in again</a>.
+        </p>
+      )}
+    </div>
+  );
+}
+
+// Account landing (Step 1 stub). No persistence yet — confirms sign-in, offers
+// the conversation and logout. Real case overview arrives in Step 2+.
+function AccountPage() {
+  const { user, authLoading } = useAuth();
+
+  if (!authReady) {
+    return (
+      <div className="page fade-in">
+        <div className="eyebrow">Account</div>
+        <h1 className="display" style={{ fontSize: 34 }}>Accounts aren't available right now.</h1>
+        <button className="btn btn-primary" onClick={() => go("/start")}>Start a conversation</button>
+      </div>
+    );
+  }
+  if (authLoading) {
+    return <div className="page fade-in"><p className="lede">Loading…</p></div>;
+  }
+  if (!user) {
+    return (
+      <div className="page fade-in">
+        <div className="eyebrow">Account</div>
+        <h1 className="display" style={{ fontSize: 34 }}>You're not signed in.</h1>
+        <p className="lede">Sign in to pick up where you left off.</p>
+        <button className="btn btn-primary" onClick={() => go("/login")}>Log in</button>
+      </div>
+    );
+  }
+  return (
+    <div className="page fade-in">
+      <div className="eyebrow">Account</div>
+      <h1 className="display" style={{ fontSize: 38 }}>You're signed in.</h1>
+      <p className="lede">
+        Signed in as <strong>{user.email}</strong>. Saving and reopening your case is
+        coming soon — for now you can head into the conversation.
+      </p>
+      <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+        <button className="btn btn-primary" onClick={() => go("/start")}>Go to the conversation</button>
+        <button className="btn btn-ghost" onClick={authSignOut}>Log out</button>
+      </div>
+    </div>
+  );
+}
+
 function App() {
   const route = useRoute();
 
+  // After a magic-link sign-in completes, land on the account page. SIGNED_IN
+  // fires on a fresh sign-in (not on a restored session), so returning users who
+  // reload elsewhere aren't yanked here.
+  useEffect(() => {
+    if (!sb) return;
+    const { data: listener } = sb.auth.onAuthStateChange((event) => {
+      if (event === "SIGNED_IN") go("/account");
+    });
+    return () => { if (listener && listener.subscription) listener.subscription.unsubscribe(); };
+  }, []);
+
   let page;
+  // Implicit-flow magic-link return: tokens (or an error) come back in the URL
+  // hash, colliding with the hash router. Hold a sign-in screen until the client
+  // parses the session and the effect above routes onward.
+  const isAuthCallback =
+    route.indexOf("access_token=") !== -1 ||
+    route.indexOf("error_description=") !== -1 ||
+    route.indexOf("error=") !== -1;
+  if (isAuthCallback) {
+    page = <AuthCallback />;
+  } else {
   switch (route) {
     case "/": page = <HomePage />; break;
     case "/start": page = <StartPage />; break;
@@ -6712,7 +6849,9 @@ function App() {
     case "/about": page = <AboutPage />; break;
     case "/contact": page = <ContactPage />; break;
     case "/privacy": page = <PrivacyPage />; break;
+    case "/account": page = <AccountPage />; break;
     default: page = <NotFoundPage />;
+  }
   }
 
   return (
