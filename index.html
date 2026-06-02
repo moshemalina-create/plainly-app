@@ -22,6 +22,8 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <!-- jsPDF for generating downloadable PDFs of letters/documents (exposes window.jspdf.jsPDF) -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<!-- Supabase JS (auth; exposes window.supabase.createClient). CDN-loaded to keep the single-file, build-free model. -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
   // Configure the PDF.js worker (must match the library version above)
   if (window.pdfjsLib) {
@@ -35,6 +37,42 @@
 <div class="boot-msg"><span class="pulse"></span><span class="pulse"></span><span class="pulse"></span><br/>Loading Plainly…</div>
 <script type="text/babel" data-presets="react">
 const { useState, useEffect, useRef } = React;
+
+// ============================================================================
+// AUTH (Supabase magic-link) — optional accounts. The anonymous path never
+// depends on this: if the client fails to load, authReady stays false and no
+// auth UI mounts, so Start works exactly as before.
+// ============================================================================
+const SUPABASE_URL = "https://fzlztzqdvxibxnnfoeyc.supabase.co";
+// Publishable (anon-equivalent) key. Public by design — security is RLS, not
+// secrecy. The service-role key is NOT here and never goes in the client.
+const SUPABASE_PUBLISHABLE_KEY = "sb_publishable_41fCnhgEDTpo3IuSpB9PVA_U1NRtf-l";
+// Recorded with each new account's consent. PLACEHOLDER wording until the owner
+// supplies the real consent text — going live on placeholder text is a launch
+// gate (see docs/accounts-persistence.md).
+const CONSENT_VERSION = "placeholder-2026-06";
+
+let sb = null;
+try {
+  if (typeof window !== "undefined" && window.supabase && window.supabase.createClient) {
+    sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
+      auth: {
+        // Implicit flow: tokens return in the URL hash, which works cross-device
+        // (the magic link can be opened on a different device than it was
+        // requested from). The hash-router collision is handled explicitly in
+        // the auth-callback path.
+        flowType: "implicit",
+        detectSessionInUrl: true,
+        persistSession: true,
+        autoRefreshToken: true,
+      },
+    });
+  }
+} catch (e) {
+  sb = null;
+}
+// True only when the client actually initialized. Gates every piece of auth UI.
+const authReady = !!sb;
 
 // ============================================================================
 // PLAINLY — SITE SHELL
