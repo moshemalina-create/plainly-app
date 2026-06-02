@@ -1124,6 +1124,15 @@ function Header({ route }) {
             </a>
           ))}
         </nav>
+        {authReady && (
+          <a
+            href="#/login"
+            onClick={(e) => { e.preventDefault(); go("/login"); }}
+            style={{ marginRight: 14, fontSize: 14, color: "var(--ink-soft)", textDecoration: "none", whiteSpace: "nowrap" }}
+          >
+            Log in
+          </a>
+        )}
         <a
           href="#/start"
           className="header-cta"
@@ -6575,6 +6584,119 @@ function NotFoundPage() {
 // MAIN APP
 // ============================================================================
 
+// ============================================================================
+// PAGE: LOGIN — magic-link request + consent gate (Step 1 auth)
+// ============================================================================
+function LoginPage() {
+  const [email, setEmail] = useState("");
+  const [agreed, setAgreed] = useState(false);
+  const [status, setStatus] = useState("idle"); // idle | sending | sent | error
+  const [errMsg, setErrMsg] = useState("");
+
+  if (!authReady) {
+    return (
+      <div className="page fade-in">
+        <div className="eyebrow">Accounts</div>
+        <h1 className="display" style={{ fontSize: 38 }}>Accounts aren't available right now.</h1>
+        <p className="lede">You can still use Plainly without one — nothing about it requires an account.</p>
+        <button className="btn btn-primary" onClick={() => go("/start")}>Start a conversation</button>
+      </div>
+    );
+  }
+
+  const canSend = !!email.trim() && agreed && status !== "sending";
+
+  const send = async () => {
+    if (!canSend) return;
+    setStatus("sending");
+    setErrMsg("");
+    try {
+      const { error } = await sb.auth.signInWithOtp({
+        email: email.trim(),
+        options: {
+          // Return to whatever origin the request came from (prod or a preview).
+          emailRedirectTo: window.location.origin,
+          // Recorded as user_metadata only when the account is first created —
+          // exactly "consent at account creation". Ignored for existing users.
+          data: { consent_version: CONSENT_VERSION, consent_accepted_at: new Date().toISOString() },
+        },
+      });
+      if (error) {
+        setStatus("error");
+        setErrMsg(error.message || "Couldn't send the link. Try again in a moment.");
+      } else {
+        setStatus("sent");
+      }
+    } catch (e) {
+      setStatus("error");
+      setErrMsg((e && e.message) || "Couldn't send the link. Try again in a moment.");
+    }
+  };
+
+  if (status === "sent") {
+    return (
+      <div className="page fade-in">
+        <div className="eyebrow">Check your email</div>
+        <h1 className="display" style={{ fontSize: 38 }}>Your sign-in link is on its way.</h1>
+        <p className="lede">
+          We sent a one-time link to <strong>{email.trim()}</strong>. Open it to finish
+          signing in — on this device or any other. If it isn't there in a few minutes,
+          check spam, or send another.
+        </p>
+        <button className="btn btn-ghost" onClick={() => setStatus("idle")}>Use a different email</button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="page fade-in">
+      <div className="eyebrow">Save your case</div>
+      <h1 className="display" style={{ fontSize: 38 }}>Log in or create an account.</h1>
+      <p className="lede">
+        Enter your email and we'll send a one-time sign-in link — no password to remember.
+        New here? The same link creates your account.
+      </p>
+      <div className="card">
+        <div className="field">
+          <label>Email</label>
+          <input
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="you@example.com"
+            onKeyDown={(e) => { if (e.key === "Enter") send(); }}
+          />
+        </div>
+
+        {/* CONSENT GATE — PLACEHOLDER wording. The owner supplies the real consent
+            text before launch; going live on placeholder text is a launch gate
+            (see docs/accounts-persistence.md). */}
+        <label style={{ display: "flex", gap: 10, alignItems: "flex-start", margin: "4px 0 16px", fontSize: 14, lineHeight: 1.5, cursor: "pointer" }}>
+          <input type="checkbox" checked={agreed} onChange={(e) => setAgreed(e.target.checked)} style={{ marginTop: 3 }} />
+          <span>
+            <strong>[PLACEHOLDER — final consent wording to be supplied before launch.]</strong>{" "}
+            By creating an account I understand Plainly will store my case information — what I
+            tell it, documents it generates, and a short summary of documents I review — so I
+            can return to it later, and I agree to the terms of use and privacy policy.
+          </span>
+        </label>
+
+        {status === "error" && (
+          <p className="help" style={{ color: "var(--warn-deep)" }}>{errMsg}</p>
+        )}
+
+        <button className="btn btn-primary" onClick={send} disabled={!canSend}>
+          {status === "sending" ? "Sending…" : "Email me a sign-in link"}
+        </button>
+      </div>
+      <p className="muted" style={{ marginTop: 14 }}>
+        Prefer not to make an account?{" "}
+        <a href="#/start" onClick={(e) => { e.preventDefault(); go("/start"); }}>Use Plainly without one →</a>
+      </p>
+    </div>
+  );
+}
+
 function App() {
   const route = useRoute();
 
@@ -6582,6 +6704,7 @@ function App() {
   switch (route) {
     case "/": page = <HomePage />; break;
     case "/start": page = <StartPage />; break;
+    case "/login": page = <LoginPage />; break;
     case "/how": page = <HowPage />; break;
     case "/who": page = <WhoPage />; break;
     case "/faq": page = <FaqPage />; break;
