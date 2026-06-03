@@ -46,6 +46,38 @@ function checkRateLimit(ip) {
     return { allowed: true };
 }
 
+// Fetch this user's stored case narrative (the chat-facing "memory" briefing)
+// for server-side injection on authenticated turns. Posture (see the Step 2/3
+// plan, Section D):
+//   * Validate the token via Supabase's /auth/v1/user — NOT a local JWT verify.
+//     The project uses asymmetric signing keys, so verifying the JWT locally
+//     would be wrong; let Supabase validate it.
+//   * Read the row AS THE USER, under RLS, with the user's token + the public
+//     publishable key. The secret/service-role key is NEVER used here (it isn't
+//     even read), so there is no admin/cross-user read path.
+// Returns the narrative string, or null (→ no injection; chat proceeds normally).
+async function fetchCaseNarrative(userToken) {
+    const url = process.env.SUPABASE_URL;
+    const pub = process.env.SUPABASE_PUBLISHABLE_KEY;
+    if (!url || !pub) return null; // env not configured → behave as anonymous
+    const authHeaders = { apikey: pub, Authorization: "Bearer " + userToken };
+    try {
+          // 1. Validate the user (key-format-agnostic; 401 if token is bad/expired).
+          const userResp = await fetch(url + "/auth/v1/user", { headers: authHeaders });
+          if (!userResp.ok) return null;
+          // 2. Read context_narrative for this user's own row (RLS returns only it).
+          const caseResp = await fetch(url + "/rest/v1/cases?select=context_narrative", {
+                  headers: authHeaders,
+          });
+          if (!caseResp.ok) return null;
+          const rows = await caseResp.json();
+          const narrative = Array.isArray(rows) && rows[0] && rows[0].context_narrative;
+          return narrative ? String(narrative) : null;
+    } catch (e) {
+          return null; // network/parse failure → no injection, chat still works
+    }
+}
+
 exports.handler = async (event) => {
     // CORS preflight
     if (event.httpMethod === "OPTIONS") {
@@ -54,7 +86,7 @@ exports.handler = async (event) => {
                   headers: {
                             "Access-Control-Allow-Origin": "*",
                             "Access-Control-Allow-Methods": "POST, OPTIONS",
-                            "Access-Control-Allow-Headers": "Content-Type",
+                            "Access-Control-Allow-Headers": "Content-Type, Authorization",
                   },
                   body: "",
           };
@@ -109,6 +141,20 @@ exports.handler = async (event) => {
     // Normalise model: if client sends an unknown/deprecated model, substitute default.
     if (!body.model || !VALID_MODELS.includes(body.model)) {
           body.model = DEFAULT_MODEL;
+    }
+
+    // Server-side context assembly (authenticated turns only): if the request
+    // carries a valid user token, append this parent's stored case narrative to
+    // the system prompt. No token / invalid / expired → unchanged anonymous path.
+    const authz = (event.headers && (event.headers.authorization || event.headers.Authorization)) || "";
+    if (authz.indexOf("Bearer ") === 0) {
+          const narrative = await fetchCaseNarrative(authz.slice(7));
+          if (narrative) {
+                  body.system =
+                            (body.system || "") +
+                            "\n\n--- CASE MEMORY (what you learned in earlier conversations with this parent; treat it as known context, but you do NOT know what they've done since — ask) ---\n" +
+                            narrative;
+          }
     }
 
     try {

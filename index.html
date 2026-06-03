@@ -3156,9 +3156,20 @@ function normalizeReply(parsed) {
 
 async function callClaude(messages, dynamicSystem) {
   const apiMessages = messages.map((m) => ({ role: m.role, content: m.content }));
+  // Authenticated turns: forward the user's access token so the function can
+  // inject this parent's case memory server-side (netlify/functions/claude.js).
+  // Anonymous (no session) → no header → the function behaves exactly as before.
+  const headers = { "Content-Type": "application/json" };
+  if (sb) {
+    try {
+      const { data } = await sb.auth.getSession();
+      const tok = data && data.session && data.session.access_token;
+      if (tok) headers["Authorization"] = "Bearer " + tok;
+    } catch (e) { /* no session → anonymous */ }
+  }
   const response = await fetch(API_URL, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers,
     body: JSON.stringify({
       model: MODEL,
       max_tokens: 2000,
