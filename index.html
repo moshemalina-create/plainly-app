@@ -5542,6 +5542,15 @@ function ChatTool() {
   });
   const [formalFieldsCollected, setFormalFieldsCollected] = useState(false);
 
+  // --- Accounts (Step 2): durable per-user persistence to Supabase, layered on
+  // top of the ephemeral sessionStorage mirror. Anonymous users never touch
+  // Supabase — every path below is gated on `authUser`.
+  const { user: authUser, authLoading } = useAuth();
+  const [caseLoaded, setCaseLoaded] = useState(false);      // server case-load attempted
+  const [caseSessionId, setCaseSessionId] = useState(null); // current sessions row id
+  const hadLocalSessionRef = useRef(false);                 // did this tab already hold a convo?
+  const sessionCreatingRef = useRef(false);                 // guards concurrent session inserts
+
   // IEP upload + review
   const [iepFileName, setIepFileName] = useState(null);
   const [iepExtraction, setIepExtraction] = useState(null);
@@ -5589,7 +5598,11 @@ function ChatTool() {
           const result = await window.storage.get(STORAGE_KEY);
           if (!canceled && result && result.value) {
             const saved = JSON.parse(result.value);
-            if (saved.messages && saved.messages.length > 0) setMessages(saved.messages);
+            if (saved.messages && saved.messages.length > 0) {
+              setMessages(saved.messages);
+              hadLocalSessionRef.current = true;
+            }
+            if (saved.caseSessionId) setCaseSessionId(saved.caseSessionId);
             if (saved.intake) setIntake(saved.intake);
             if (saved.chatState) setChatState(saved.chatState);
             if (saved.waitChecks) {
@@ -5642,7 +5655,7 @@ function ChatTool() {
               assessmentRequested,
               outputsRequested, outputs, formalFields, formalFieldsCollected,
               iepFileName, iepExtraction, iepFlags, iepFlagAnswers,
-              uploadedDocs,
+              uploadedDocs, caseSessionId,
             })
           );
         }
@@ -5650,7 +5663,78 @@ function ChatTool() {
         // Save failed — silent
       }
     })();
-  }, [loaded, messages, intake, chatState, waitChecks, checklist, checkedItems, triageResult, fullComplaintFormOpen, draft, draftEdited, reviewChecks, assessmentRequested, outputsRequested, outputs, formalFields, formalFieldsCollected, iepFileName, iepExtraction, iepFlags, iepFlagAnswers, uploadedDocs]);
+  }, [loaded, messages, intake, chatState, waitChecks, checklist, checkedItems, triageResult, fullComplaintFormOpen, draft, draftEdited, reviewChecks, assessmentRequested, outputsRequested, outputs, formalFields, formalFieldsCollected, iepFileName, iepExtraction, iepFlags, iepFlagAnswers, uploadedDocs, caseSessionId]);
+
+  // --- Accounts (Step 2) — durable Supabase persistence for authenticated users.
+  // Hydrate case facts on an authenticated return (a fresh tab/visit with no
+  // in-tab conversation); mirror case state back on change. Anonymous users and
+  // a missing/failed client skip all of it.
+  useEffect(() => {
+    if (!loaded || caseLoaded) return;
+    if (authLoading) return;                                  // wait for auth to resolve
+    if (!sb || !authUser) { setCaseLoaded(true); return; }    // anonymous → nothing to load
+    let active = true;
+    (async () => {
+      // Only hydrate from the server when this tab has no live local conversation
+      // (a genuine return). A mid-tab reload keeps its in-tab state untouched.
+      if (!hadLocalSessionRef.current) {
+        try {
+          const { data } = await sb.from("cases")
+            .select("intake, formal_fields")
+            .eq("user_id", authUser.id)
+            .maybeSingle();
+          if (active && data) {
+            if (data.intake && Object.keys(data.intake).length) setIntake(data.intake);
+            if (data.formal_fields) setFormalFields((f) => ({ ...f, ...data.formal_fields }));
+          }
+        } catch (e) { /* offline / no row yet — fall back to a fresh chat */ }
+      }
+      if (active) setCaseLoaded(true);
+    })();
+    return () => { active = false; };
+  }, [loaded, caseLoaded, authLoading, authUser]);
+
+  // Mirror to Supabase (debounced). Writes only once there's a real conversation,
+  // so logging in and looking around — or hitting "Start fresh" — never creates
+  // an empty row or wipes a saved case.
+  const caseSaveTimer = useRef(null);
+  const persistCase = async () => {
+    if (!sb || !authUser) return;
+    const meaningful =
+      (intake && Object.keys(intake).length > 0) || messages.some((m) => m.role === "user");
+    if (!meaningful) return;
+    const now = new Date().toISOString();
+    try {
+      await sb.from("cases").upsert(
+        { user_id: authUser.id, intake, formal_fields: formalFields, updated_at: now },
+        { onConflict: "user_id" }
+      );
+      if (caseSessionId) {
+        await sb.from("sessions")
+          .update({ transcript: messages, updated_at: now })
+          .eq("id", caseSessionId);
+      } else if (!sessionCreatingRef.current) {
+        sessionCreatingRef.current = true;
+        const { data, error } = await sb.from("sessions")
+          .insert({ user_id: authUser.id, transcript: messages, updated_at: now })
+          .select("id")
+          .single();
+        if (!error && data) setCaseSessionId(data.id);
+        sessionCreatingRef.current = false;
+      }
+    } catch (e) {
+      sessionCreatingRef.current = false;
+      /* silent — the sessionStorage mirror still holds this turn */
+    }
+  };
+  useEffect(() => {
+    if (!loaded || !caseLoaded) return;
+    if (!sb || !authUser) return;                             // anonymous → no Supabase writes
+    if (caseSaveTimer.current) clearTimeout(caseSaveTimer.current);
+    caseSaveTimer.current = setTimeout(persistCase, 1200);
+    return () => { if (caseSaveTimer.current) clearTimeout(caseSaveTimer.current); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loaded, caseLoaded, authUser, intake, formalFields, messages]);
 
   // Note: the personalized document checklist is now generated as part of the
   // outputs library (id "document_checklist") when the parent requests it,
@@ -6227,6 +6311,10 @@ function ChatTool() {
     // before the storage delete completes.
     setMessages([{ role: "assistant", content: OPENING }]);
     setIntake({});
+    // New conversation = new session row next time something is persisted. The
+    // server case row is left intact (the persist guard skips empty state), so
+    // "Start fresh" never silently destroys a saved case.
+    setCaseSessionId(null);
     setChatState("continuing");
     setWaitChecks([]);
     setError(null);
