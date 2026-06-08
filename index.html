@@ -2316,6 +2316,15 @@ When a parent attaches a document, do NOT immediately analyze it at them. Acknow
 
 Once a document is in the conversation, its text appears in an UPLOADED DOCUMENTS section appended below. Treat that text as the real document the parent shared. Reference specifics naturally — service amounts, goal language, dates, classification, who signed what. Never invent anything that isn't actually there. If a document shows as truncated, tell the parent you've read most of it and ask them to point you to a specific section or page if you need a part you can't see. Documents can be any type; work out what each one is from its contents and use it accordingly.
 
+PREVIOUSLY REVIEWED DOCUMENTS (returning parents)
+You may see a PREVIOUSLY REVIEWED DOCUMENTS section below. These are SHALLOW HEADLINES of documents the parent shared in an earlier conversation. To protect the family's privacy, Plainly does NOT keep the original files between sessions — so for these you have only the gist (type, date, a high-level finding), NOT the full text and NOT the specifics (exact services, goal wording, classification, scores).
+
+How to handle them:
+- You DO know these documents existed and roughly what they showed. Speak to them confidently at that level — don't act confused about whether you've seen the document, and don't pretend you still have its details. (Being wishy-washy about whether you have the document is exactly the confusion to avoid.)
+- Do NOT preemptively ask the parent to re-upload on every return. If they just want to talk through next steps, the headline is plenty — use it and keep going.
+- Ask for a re-upload ONLY when the task genuinely needs detail the headline can't supply — e.g., drafting or finalizing a complaint, or answering a question that turns on exact service levels, goal language, or scores. When that moment comes, recall the headline, give the honest privacy reason, and ask for the file. For example: "While we previously reviewed the IEP from [date], which showed deficiencies in reading, writing, and speech, Plainly doesn't keep the original document between sessions to protect your and your child's privacy. Could you upload it again here, and I'll have exactly what I need to [draft the complaint / answer that precisely]?"
+- Once they re-upload, it appears in UPLOADED DOCUMENTS with its full text — work from that as normal.
+
 WAIT-CHECKS — surface IMMEDIATELY, the moment they come up
 Some things are time-sensitive, and a parent can lose rights simply by not knowing. The moment one applies, raise it in your very next reply — don't save it.
 - Private school in play (considering, planning, or already enrolled): explain the 10-day notice rule plainly — to preserve the strongest tuition-reimbursement claim, NY parents either tell the district at the most recent CSE meeting that they reject the program and intend to enroll privately at public expense, OR give written notice at least 10 business days before pulling the child out. Ask whether they've done either. Set wait_check_just_surfaced = "ten_day_notice".
@@ -5681,6 +5690,11 @@ function ChatTool() {
   // every turn (see processCall) so the assistant can reference the documents
   // naturally. Distinct from the preserved IEP-assessment pipeline (iep* state).
   const [uploadedDocs, setUploadedDocs] = useState([]);
+  // Step 3: shallow headlines of documents reviewed in PRIOR sessions, loaded
+  // from the server on return. Injected into the chat so it recognizes a
+  // document it no longer holds in full and can ask for re-upload when a task
+  // needs specifics (see processCall + CHAT_ADVOCATE_PROMPT).
+  const [docsReviewed, setDocsReviewed] = useState([]);
   const [attachError, setAttachError] = useState(null);
   const [attaching, setAttaching] = useState(false);
 
@@ -5808,12 +5822,15 @@ function ChatTool() {
     (async () => {
       try {
         const { data } = await sb.from("cases")
-          .select("intake, formal_fields, parent_notes")
+          .select("intake, formal_fields, parent_notes, docs_reviewed")
           .eq("user_id", authUser.id)
           .maybeSingle();
         if (active && data) {
           // parent_notes is case-level — load it regardless, so the chat can use it.
           if (typeof data.parent_notes === "string") setParentNotes(data.parent_notes);
+          // docs_reviewed (shallow headlines) — also load regardless, so even a
+          // mid-tab reload keeps the prior-document context the chat speaks to.
+          if (Array.isArray(data.docs_reviewed)) setDocsReviewed(data.docs_reviewed);
           // Hydrate facts only on a genuine return (no live in-tab conversation);
           // a mid-tab reload keeps its in-tab state untouched.
           if (!hadLocalSessionRef.current) {
@@ -6291,6 +6308,27 @@ function ChatTool() {
     const docsBlock = formatDocsForPrompt(docs);
     if (docsBlock) {
       baseSystem += "\n\n--- UPLOADED DOCUMENTS ---\n" + docsBlock;
+    }
+    // Step 3: shallow headlines of documents reviewed in PRIOR sessions. The
+    // raw originals were discarded; only these gists remain. Exclude any doc
+    // attached in full THIS turn (its full text is already above). The chat is
+    // told (in CHAT_ADVOCATE_PROMPT) to recognize these, and to ask for a
+    // re-upload ONLY when a task needs specifics the headline can't supply.
+    const attachedNames = new Set((docs || []).map((d) => d.name));
+    const priorHeadlines = (docsReviewed || []).filter((d) => d && !attachedNames.has(d.filename));
+    if (priorHeadlines.length > 0) {
+      baseSystem +=
+        "\n\n--- PREVIOUSLY REVIEWED DOCUMENTS (headline only — the originals are NOT retained; you do NOT have their full text or specifics) ---\n" +
+        priorHeadlines
+          .map((d) => {
+            const bits = [d.doc_type || "Document"];
+            if (d.date_conducted) bits.push(`dated ${d.date_conducted}`);
+            if (d.source) bits.push(`from ${d.source}`);
+            const head = bits.join(", ");
+            const findings = d.headline_extraction ? ` — ${d.headline_extraction}` : "";
+            return `- ${d.filename}: ${head}${findings}`;
+          })
+          .join("\n");
     }
 
     let parsed;
