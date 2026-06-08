@@ -7135,6 +7135,9 @@ function AccountPage() {
   const [caseRow, setCaseRow] = useState(null);
   const [notes, setNotes] = useState("");
   const [notesStatus, setNotesStatus] = useState("idle"); // idle | saving | saved
+  const [docsReviewed, setDocsReviewed] = useState([]);   // headline ledger (read-only)
+  const [genFiles, setGenFiles] = useState([]);           // generated docs in the bucket
+  const [downloadingFile, setDownloadingFile] = useState(null); // filename currently downloading
 
   useEffect(() => {
     if (!authReady || authLoading || !user || !sb) return;
@@ -7159,24 +7162,61 @@ function AccountPage() {
           }
         } catch (e) { /* regen failure → just show whatever recap exists */ }
       }
-      // Read recap + notes + timestamps. NEVER select context_narrative — the
-      // chat-facing briefing stays server-side per the access posture.
+      // Read recap + notes + timestamps + the docs_reviewed ledger. NEVER select
+      // context_narrative — the chat-facing briefing stays server-side per the
+      // access posture.
       try {
         const { data } = await sb.from("cases")
-          .select("recap, parent_notes, last_session_at, updated_at, created_at")
+          .select("recap, parent_notes, docs_reviewed, last_session_at, updated_at, created_at")
           .eq("user_id", user.id)
           .maybeSingle();
         if (active) {
           setCaseRow(data || {});
           setNotes((data && data.parent_notes) || "");
+          setDocsReviewed((data && Array.isArray(data.docs_reviewed)) ? data.docs_reviewed : []);
           setPhase("ready");
         }
       } catch (e) {
         if (active) { setCaseRow({}); setPhase("ready"); }
       }
+      // List the parent's generated documents from their own bucket folder.
+      // RLS-scoped to their uid folder; failure just leaves the list empty.
+      try {
+        const { data: files } = await sb.storage
+          .from("generated-docs")
+          .list(user.id, { limit: 100, sortBy: { column: "name", order: "asc" } });
+        if (active && Array.isArray(files)) {
+          setGenFiles(files.filter((f) => f && f.name && !f.name.startsWith(".")));
+        }
+      } catch (e) { /* no files / offline → empty list */ }
     })();
     return () => { active = false; };
   }, [authLoading, user]);
+
+  // Download one generated document from the bucket (RLS-scoped to the user's
+  // own folder) and save it locally.
+  const downloadGenFile = async (name) => {
+    if (!sb || !user) return;
+    setDownloadingFile(name);
+    try {
+      const { data, error } = await sb.storage
+        .from("generated-docs")
+        .download(`${user.id}/${name}`);
+      if (error || !data) throw error || new Error("no data");
+      const url = URL.createObjectURL(data);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = name;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } catch (e) {
+      alert("Couldn't download that document just now — please try again in a moment.");
+    } finally {
+      setDownloadingFile(null);
+    }
+  };
 
   if (!authReady) {
     return (
@@ -7248,6 +7288,55 @@ function AccountPage() {
         <button className="btn btn-ghost" onClick={authSignOut}>Log out</button>
       </div>
 
+      {docsReviewed.length > 0 && (
+        <div className="card" style={{ marginTop: 22 }}>
+          <h3 className="sub">Docs reviewed</h3>
+          <p className="help">
+            Documents you've shared with Plainly. To protect your and your child's
+            privacy, only a short summary is kept here — never the original file. If
+            we need the specifics again, I'll ask you to re-upload it.
+          </p>
+          <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
+            {docsReviewed.map((d, i) => (
+              <li key={i} style={{ padding: "10px 0", borderTop: i ? "1px solid var(--border-soft)" : "none" }}>
+                <div style={{ fontWeight: 500 }}>
+                  {d.doc_type || "Document"}{d.date_conducted ? ` — ${d.date_conducted}` : ""}
+                </div>
+                {d.headline_extraction && (
+                  <div style={{ fontSize: 13, color: "var(--ink-muted)", marginTop: 2 }}>{d.headline_extraction}</div>
+                )}
+                <div style={{ fontSize: 12, color: "var(--ink-soft)", marginTop: 2 }}>
+                  {d.filename}{d.source ? ` · ${d.source}` : ""}{d.date_reviewed ? ` · reviewed ${d.date_reviewed}` : ""}
+                </div>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {genFiles.length > 0 && (
+        <div className="card" style={{ marginTop: 22 }}>
+          <h3 className="sub">Documents</h3>
+          <p className="help">
+            Documents Plainly put together with you — your complaint, letters.
+            Download them whenever you need them.
+          </p>
+          <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
+            {genFiles.map((f, i) => (
+              <li
+                key={f.name}
+                style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, padding: "10px 0", borderTop: i ? "1px solid var(--border-soft)" : "none" }}
+              >
+                <span>{f.name.replace(/\.pdf$/i, "").replace(/[-_]/g, " ").replace(/^./, (c) => c.toUpperCase())}</span>
+                <button className="btn btn-ghost" onClick={() => downloadGenFile(f.name)} disabled={downloadingFile === f.name}>
+                  {downloadingFile === f.name ? "Downloading…" : "Download"}
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
       <div className="card" style={{ marginTop: 22 }}>
         <h3 className="sub">My notes</h3>
         <p className="help">Anything you want to jot down for yourself — questions, dates, what happened at a meeting. I'll have these in our next conversation.</p>
@@ -7260,7 +7349,7 @@ function AccountPage() {
       </div>
 
       <p className="muted" style={{ marginTop: 18, fontSize: 13 }}>
-        Signed in as {user.email}. Documents you've reviewed and generated will appear here soon.
+        Signed in as {user.email}.
       </p>
     </div>
   );
