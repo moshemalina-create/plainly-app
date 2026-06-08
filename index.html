@@ -2878,6 +2878,34 @@ DO NOT
 - Produce a complaint or recommend specific drafting.`;
 
 // ============================================================================
+// HEADLINE EXTRACT PROMPT (Step 3 — docs_reviewed ledger)
+// ============================================================================
+// Deliberately SHALLOW. This is NOT the rich IEP_EXTRACT_PROMPT — it is a
+// privacy-preserving headline, with the floor AND the ceiling stated explicitly
+// (the natural gravity of an extraction prompt is to be thorough, and
+// thoroughness here defeats the entire point). The headline is what survives
+// between sessions; the raw document is discarded. See
+// docs/accounts-persistence.md Section 7.
+const HEADLINE_EXTRACT_PROMPT = `You produce a deliberately SHALLOW, privacy-preserving "headline" of a document a parent uploaded in a New York special-education matter. This headline is the ONLY thing kept between sessions — the original document is discarded and never stored. Your job is to capture just enough for a future conversation to recognize the document and speak to its gist, and NO MORE.
+
+Return ONLY a JSON object with exactly these keys:
+{
+  "doc_type": "short label, e.g. 'IEP', 'Neuropsychological evaluation', 'Speech-language evaluation', 'Progress report', 'Prior written notice'",
+  "date_conducted": "the document's own date if clearly stated (YYYY-MM-DD or as written); otherwise null",
+  "source": "the evaluator, author, or issuing office if relevant (e.g. 'NYC DOE', 'Dr. Smith, school psychologist'); otherwise null",
+  "headline_findings": "ONE short, high-level phrase or sentence at the altitude of 'deficiencies in reading, writing, and speech' or 'recommends more intensive reading support'"
+}
+
+CEILING — you MUST NOT include any of the following, in any field:
+- exact service minutes, frequencies, ratios, or levels (no "3x30 SETSS", no "1:1");
+- goal-by-goal language or any verbatim quotes from the document;
+- classification codes or specific disability classifications;
+- standardized test scores, subtest scores, or percentiles;
+- any specific numbers, dates beyond date_conducted, or names beyond source.
+
+Keep headline_findings general and brief. If the document is unclear or you are unsure, prefer a vaguer, higher-level summary over guessing specifics. Output the JSON object and nothing else.`;
+
+// ============================================================================
 // CHECKLIST PROMPT
 // ============================================================================
 
@@ -3629,6 +3657,66 @@ function formatDocsForPrompt(docs) {
     return `Document: ${d.name}${marker}\n${text}`;
   });
   return blocks.join("\n\n");
+}
+
+// ============================================================================
+// STEP 3 — docs_reviewed ledger (shallow headlines of uploaded documents)
+// ============================================================================
+// PRIVACY INVARIANT: the raw upload text is NEVER written to Supabase. It lives
+// only in the in-tab `uploadedDocs` state for the active session (powering the
+// live chat) and dies with the tab. ONLY the shallow headline below reaches the
+// server. "Discard the raw file" = we simply never persist it. See
+// docs/accounts-persistence.md Section 7.
+//
+// Both helpers are module-level (no React deps beyond the global `sb`) so the
+// deferred Step 5 anonymous->account upgrade can replay them over the in-tab
+// docs at save time.
+
+// Generate the shallow headline for one uploaded document. Returns a ledger
+// entry, or null on any failure — a failed headline must never block the chat
+// or fabricate detail.
+async function extractHeadlineForDoc(filename, text) {
+  if (!text || !text.trim()) return null;
+  try {
+    const h = await callClaudeForJSON(
+      HEADLINE_EXTRACT_PROMPT,
+      "Produce the shallow headline for this document. Return only the JSON object.\n\n" +
+        text.slice(0, DOC_CHAR_CAP)
+    );
+    return {
+      filename,
+      date_reviewed: new Date().toISOString().slice(0, 10),
+      doc_type: (h && h.doc_type) || "Document",
+      date_conducted: (h && h.date_conducted) || null,
+      source: (h && h.source) || null,
+      headline_extraction: (h && h.headline_findings) || "",
+    };
+  } catch (e) {
+    return null;
+  }
+}
+
+// Append one headline entry to this user's docs_reviewed ledger (read-merge-
+// write, under the user's own RLS-scoped session). De-dupes on filename so
+// re-attaching the same file replaces rather than piles up. Auth is the
+// caller's responsibility; this is silent-on-failure (the ledger is a
+// convenience and must never block the chat).
+async function appendDocReviewed(userId, entry) {
+  if (!sb || !userId || !entry) return;
+  try {
+    const { data } = await sb.from("cases")
+      .select("docs_reviewed")
+      .eq("user_id", userId)
+      .maybeSingle();
+    const existing = data && Array.isArray(data.docs_reviewed) ? data.docs_reviewed : [];
+    const merged = existing.filter((d) => d.filename !== entry.filename).concat([entry]);
+    await sb.from("cases").upsert(
+      { user_id: userId, docs_reviewed: merged, updated_at: new Date().toISOString() },
+      { onConflict: "user_id" }
+    );
+  } catch (e) {
+    /* silent — never blocks the chat */
+  }
 }
 
 // Normalize typographic characters to ASCII for the PDF only. jsPDF's standard
@@ -6283,6 +6371,17 @@ function ChatTool() {
       }
       const newDocs = [...uploadedDocs, { name: file.name, text }];
       setUploadedDocs(newDocs);
+
+      // Step 3: record a shallow headline of this upload in the parent's ledger,
+      // so a future return recognizes the document (and can ask for re-upload
+      // when specifics are needed). Auth-only — anonymous sessions write nothing
+      // server-side. Raw `text` is NOT persisted; only the headline. Fire-and-
+      // forget so it never gates this chat turn.
+      if (sb && authUser) {
+        extractHeadlineForDoc(file.name, text)
+          .then((entry) => entry && appendDocReviewed(authUser.id, entry))
+          .catch(() => {});
+      }
 
       const newMsgs = [...messages, { role: "user", content: `I've attached a document: ${file.name}` }];
       setMessages(newMsgs);
