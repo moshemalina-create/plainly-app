@@ -5449,6 +5449,22 @@ function IEPSection({
 const OPENING =
   "Hi. I'm here to help you make sense of what's going on with your child's special education — what their documents actually say, where the district may be falling short, and what you can do about it, whether that's pushing back, getting something in writing, or filing if it comes to that.\n\nNo form to fill out. Just tell me what's going on in your own words, and if you've got a document like the IEP, you can attach it any time and I'll take a look.\n\nTo start — what's your child's first name, and what's been worrying you?";
 
+// Honest, recap-derived opening for a returning parent's fresh chat: states what
+// was done (the recap), is candid that we don't know what they did since, and
+// invites an update. Thin-history fallback when there's no meaningful recap yet.
+function buildReturnOpening(recap) {
+  const r = (recap || "").trim();
+  if (!r) {
+    return "Welcome back. We'd started talking through your situation, but didn't get far enough last time for me to summarize it. Where would you like to pick up?";
+  }
+  return r + "\n\nI've got the context from our earlier conversations — but I don't know what's happened since we last talked. Tell me where things stand now, or what you'd like to work on, and we'll go from there.";
+}
+
+// Regenerate recap/narrative at most once per page load on an authenticated
+// return (see AccountPage). Module-level so it survives account-page remounts
+// within the same page load; a genuine return is a new page load.
+let accountRegeneratedThisLoad = false;
+
 // Render a message string with real paragraph and line breaks. Splits on blank
 // lines into <p> paragraphs, converts single newlines to <br>, and renders
 // **bold** spans. Keeps everything as safe React elements (no dangerouslySetHTML).
@@ -5559,6 +5575,7 @@ function ChatTool() {
   const { user: authUser, authLoading } = useAuth();
   const [caseLoaded, setCaseLoaded] = useState(false);      // server case-load attempted
   const [caseSessionId, setCaseSessionId] = useState(null); // current sessions row id
+  const [parentNotes, setParentNotes] = useState("");       // parent-authored notes (account page)
   const hadLocalSessionRef = useRef(false);                 // did this tab already hold a convo?
   const sessionCreatingRef = useRef(false);                 // guards concurrent session inserts
 
@@ -5602,6 +5619,21 @@ function ChatTool() {
 
   // Load saved state from window.storage on mount.
   useEffect(() => {
+    // Return-chat handoff from the account page (Continue): start a FRESH session
+    // whose first message is the honest, recap-derived opening, ignoring any
+    // saved local chat. Supabase intake hydration (below) still runs, and the
+    // narrative injects server-side on the first turn (Commit 3).
+    let returnOpening = null;
+    try { returnOpening = sessionStorage.getItem("plainly:return_opening"); } catch (e) {}
+    if (returnOpening) {
+      try { sessionStorage.removeItem("plainly:return_opening"); } catch (e) {}
+      setMessages([{ role: "assistant", content: returnOpening }]);
+      setCaseSessionId(null);              // first persist creates a new session row
+      hadLocalSessionRef.current = false;  // allow Supabase intake/formalFields hydration
+      setLoaded(true);
+      return;
+    }
+
     let canceled = false;
     (async () => {
       try {
@@ -5686,20 +5718,22 @@ function ChatTool() {
     if (!sb || !authUser) { setCaseLoaded(true); return; }    // anonymous → nothing to load
     let active = true;
     (async () => {
-      // Only hydrate from the server when this tab has no live local conversation
-      // (a genuine return). A mid-tab reload keeps its in-tab state untouched.
-      if (!hadLocalSessionRef.current) {
-        try {
-          const { data } = await sb.from("cases")
-            .select("intake, formal_fields")
-            .eq("user_id", authUser.id)
-            .maybeSingle();
-          if (active && data) {
+      try {
+        const { data } = await sb.from("cases")
+          .select("intake, formal_fields, parent_notes")
+          .eq("user_id", authUser.id)
+          .maybeSingle();
+        if (active && data) {
+          // parent_notes is case-level — load it regardless, so the chat can use it.
+          if (typeof data.parent_notes === "string") setParentNotes(data.parent_notes);
+          // Hydrate facts only on a genuine return (no live in-tab conversation);
+          // a mid-tab reload keeps its in-tab state untouched.
+          if (!hadLocalSessionRef.current) {
             if (data.intake && Object.keys(data.intake).length) setIntake(data.intake);
             if (data.formal_fields) setFormalFields((f) => ({ ...f, ...data.formal_fields }));
           }
-        } catch (e) { /* offline / no row yet — fall back to a fresh chat */ }
-      }
+        }
+      } catch (e) { /* offline / no row yet — fall back to a fresh chat */ }
       if (active) setCaseLoaded(true);
     })();
     return () => { active = false; };
@@ -6159,6 +6193,12 @@ function ChatTool() {
         "\n\n--- ALREADY COLLECTED (do not re-ask these — the parent typed them into the form) ---\n" +
         collectedFormal.map(([k, v]) => `- ${k}: ${v}`).join("\n") +
         "\nIf you need other identity fields for a specific output, the form below will collect them; do not ask for them in chat.";
+    }
+    // Parent's own notes (authored on the account page) — inject so the chat can
+    // use them. Parent-authored and shown on the account page, so client-side
+    // injection is fine; only context_narrative stays server-side.
+    if (parentNotes && parentNotes.trim()) {
+      baseSystem += "\n\n--- PARENT'S OWN NOTES (they wrote these for themselves; use them as context) ---\n" + parentNotes.trim();
     }
     const docsBlock = formatDocsForPrompt(docs);
     if (docsBlock) {
@@ -6873,6 +6913,52 @@ function AuthCallback() {
 // the conversation and logout. Real case overview arrives in Step 2+.
 function AccountPage() {
   const { user, authLoading } = useAuth();
+  const [phase, setPhase] = useState("loading"); // loading | preparing | ready
+  const [caseRow, setCaseRow] = useState(null);
+  const [notes, setNotes] = useState("");
+  const [notesStatus, setNotesStatus] = useState("idle"); // idle | saving | saved
+
+  useEffect(() => {
+    if (!authReady || authLoading || !user || !sb) return;
+    let active = true;
+    (async () => {
+      // On a genuine return (first account mount this page load) regenerate, so
+      // the recap reflects the most recent session BEFORE we show it. Lazy: this
+      // is the return, never an exit. context_narrative is rebuilt too, ready for
+      // the next Continue — but we never read it into the client here.
+      if (!accountRegeneratedThisLoad) {
+        accountRegeneratedThisLoad = true;
+        if (active) setPhase("preparing");
+        try {
+          const { data: s } = await sb.auth.getSession();
+          const tok = s && s.session && s.session.access_token;
+          if (tok) {
+            await fetch(API_URL, {
+              method: "POST",
+              headers: { "Content-Type": "application/json", Authorization: "Bearer " + tok },
+              body: JSON.stringify({ action: "regenerate" }),
+            });
+          }
+        } catch (e) { /* regen failure → just show whatever recap exists */ }
+      }
+      // Read recap + notes + timestamps. NEVER select context_narrative — the
+      // chat-facing briefing stays server-side per the access posture.
+      try {
+        const { data } = await sb.from("cases")
+          .select("recap, parent_notes, last_session_at, updated_at, created_at")
+          .eq("user_id", user.id)
+          .maybeSingle();
+        if (active) {
+          setCaseRow(data || {});
+          setNotes((data && data.parent_notes) || "");
+          setPhase("ready");
+        }
+      } catch (e) {
+        if (active) { setCaseRow({}); setPhase("ready"); }
+      }
+    })();
+    return () => { active = false; };
+  }, [authLoading, user]);
 
   if (!authReady) {
     return (
@@ -6883,9 +6969,7 @@ function AccountPage() {
       </div>
     );
   }
-  if (authLoading) {
-    return <div className="page fade-in"><p className="lede">Loading…</p></div>;
-  }
+  if (authLoading) return <div className="page fade-in"><p className="lede">Loading…</p></div>;
   if (!user) {
     return (
       <div className="page fade-in">
@@ -6896,18 +6980,70 @@ function AccountPage() {
       </div>
     );
   }
+  if (phase === "preparing" || phase === "loading") {
+    return (
+      <div className="page fade-in">
+        <div className="eyebrow">Your case</div>
+        <div className="checklist-loading">
+          <span className="spinner" style={{ width: 16, height: 16, borderWidth: 2 }} />
+          <span>{phase === "preparing" ? "Preparing your case…" : "Loading…"}</span>
+        </div>
+      </div>
+    );
+  }
+
+  const recap = (caseRow && caseRow.recap) || "";
+  const lastVisit = caseRow && (caseRow.last_session_at || caseRow.updated_at);
+  let lastVisitStr = null;
+  try {
+    if (lastVisit) lastVisitStr = new Date(lastVisit).toLocaleDateString(undefined, { year: "numeric", month: "long", day: "numeric" });
+  } catch (e) {}
+
+  const onContinue = () => {
+    try { sessionStorage.setItem("plainly:return_opening", buildReturnOpening(recap)); } catch (e) {}
+    go("/start");
+  };
+  const saveNotes = async () => {
+    if (!sb || !user) return;
+    setNotesStatus("saving");
+    try {
+      await sb.from("cases").upsert(
+        { user_id: user.id, parent_notes: notes, updated_at: new Date().toISOString() },
+        { onConflict: "user_id" }
+      );
+      setNotesStatus("saved");
+      setTimeout(() => setNotesStatus("idle"), 2500);
+    } catch (e) { setNotesStatus("idle"); }
+  };
+
   return (
     <div className="page fade-in">
-      <div className="eyebrow">Account</div>
-      <h1 className="display" style={{ fontSize: 38 }}>You're signed in.</h1>
-      <p className="lede">
-        Signed in as <strong>{user.email}</strong>. Saving and reopening your case is
-        coming soon — for now you can head into the conversation.
-      </p>
-      <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-        <button className="btn btn-primary" onClick={() => go("/start")}>Go to the conversation</button>
+      <div className="eyebrow">Your case</div>
+      <h1 className="display" style={{ fontSize: 34 }}>Welcome back.</h1>
+      {recap
+        ? <p className="lede">{recap}</p>
+        : <p className="lede">We haven't built up a summary of your situation yet — pick up the conversation whenever you're ready.</p>}
+      {lastVisitStr && <p className="muted" style={{ marginTop: -6 }}>Last visit: {lastVisitStr}</p>}
+
+      <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 8 }}>
+        <button className="btn btn-primary" onClick={onContinue}>Continue the conversation</button>
         <button className="btn btn-ghost" onClick={authSignOut}>Log out</button>
       </div>
+
+      <div className="card" style={{ marginTop: 22 }}>
+        <h3 className="sub">My notes</h3>
+        <p className="help">Anything you want to jot down for yourself — questions, dates, what happened at a meeting. I'll have these in our next conversation.</p>
+        <div className="field">
+          <textarea rows={5} value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="e.g., CSE meeting is on the 14th; ask about the speech eval." />
+        </div>
+        <button className="btn btn-ghost" onClick={saveNotes} disabled={notesStatus === "saving"}>
+          {notesStatus === "saving" ? "Saving…" : notesStatus === "saved" ? "Saved ✓" : "Save notes"}
+        </button>
+      </div>
+
+      <p className="muted" style={{ marginTop: 18, fontSize: 13 }}>
+        Signed in as {user.email}. Documents you've reviewed and generated will appear here soon.
+      </p>
     </div>
   );
 }
