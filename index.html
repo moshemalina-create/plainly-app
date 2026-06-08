@@ -3743,17 +3743,15 @@ function normalizeForPdf(text) {
     .replace(/•/g, "*");
 }
 
-// Generate and download a clean, plain business-letter PDF from text. No
-// branding — this is the parent's document. Preserves the source's line breaks
-// (address blocks, signature blocks) and wraps long lines, paginating as
-// needed. If jsPDF failed to load, degrades gracefully to a clipboard copy.
-function downloadPdf(text, filename) {
+// Build a clean, plain business-letter jsPDF doc from text. No branding — this
+// is the parent's document. Preserves the source's line breaks (address blocks,
+// signature blocks) and wraps long lines, paginating as needed. Returns the
+// jsPDF doc, or null if jsPDF failed to load. Shared by the on-screen download
+// and the Step 3 bucket-storage path, so the stored file is byte-identical to
+// what the parent downloads.
+function buildPdfDoc(text) {
   const JsPDF = window.jspdf && window.jspdf.jsPDF;
-  if (!JsPDF) {
-    try { navigator.clipboard.writeText(text); } catch (e) {}
-    alert("PDF export isn't available right now — I've copied the text to your clipboard instead, so you can paste it into a document or email.");
-    return;
-  }
+  if (!JsPDF) return null;
   const doc = new JsPDF({ unit: "pt", format: "letter" });
   const margin = 72; // 1 inch
   const pageWidth = doc.internal.pageSize.getWidth();
@@ -3776,7 +3774,54 @@ function downloadPdf(text, filename) {
       y += lineHeight;
     }
   }
+  return doc;
+}
+
+// Generate and download the PDF. Returns the rendered PDF Blob (so callers can
+// also persist the exact same bytes), or null if jsPDF was unavailable (in
+// which case we fall back to copying the text to the clipboard).
+function downloadPdf(text, filename) {
+  const doc = buildPdfDoc(text);
+  if (!doc) {
+    try { navigator.clipboard.writeText(text); } catch (e) {}
+    alert("PDF export isn't available right now — I've copied the text to your clipboard instead, so you can paste it into a document or email.");
+    return null;
+  }
   doc.save(filename);
+  return doc.output("blob");
+}
+
+// Render a PDF Blob from text without triggering a download (used to store a
+// generated document at generation time). Returns null if jsPDF is unavailable.
+function pdfBlobFromText(text) {
+  const doc = buildPdfDoc(text);
+  return doc ? doc.output("blob") : null;
+}
+
+// ============================================================================
+// STEP 3 — generated-doc storage (private per-user bucket)
+// ============================================================================
+// Store a generated document (complaint, letter) as a PDF Blob in the private
+// 'generated-docs' bucket, under the user's own uid folder so the storage RLS
+// policies scope it to them (the storage twin of the table RLS — see
+// supabase/storage.sql). These ARE sensitive (a complaint quotes the child's
+// classification and services); data-minimization does not make them
+// non-sensitive, so they get the same per-user protection as everything else.
+//
+// upsert by stable filename: regenerating a doc overwrites the prior version
+// rather than spawning orphans. Auth is the caller's responsibility; silent on
+// failure (the on-screen download still works regardless). Module-level so the
+// deferred Step 5 upgrade path can replay it over in-tab generated docs.
+async function saveGeneratedDoc(userId, filename, blob) {
+  if (!sb || !userId || !blob) return;
+  try {
+    await sb.storage.from("generated-docs").upload(`${userId}/${filename}`, blob, {
+      contentType: "application/pdf",
+      upsert: true,
+    });
+  } catch (e) {
+    /* silent — local download is unaffected */
+  }
 }
 
 // ============================================================================
@@ -4874,7 +4919,7 @@ function TriageSection({ result, loading }) {
   );
 }
 
-function DraftReview({ draft, edited, onEditChange, checks, onCheckChange, onRegenerate, drafting }) {
+function DraftReview({ draft, edited, onEditChange, checks, onCheckChange, onRegenerate, drafting, onSavePdf }) {
   const [editing, setEditing] = useState(false);
   if (drafting) {
     return (
@@ -4892,7 +4937,10 @@ function DraftReview({ draft, edited, onEditChange, checks, onCheckChange, onReg
   const finalText = edited != null ? edited : draft;
   const allChecked = checks.accuracy && checks.dates && checks.remedy;
 
-  const downloadAsPdf = () => downloadPdf(finalText, "due-process-complaint.pdf");
+  const downloadAsPdf = () => {
+    const blob = downloadPdf(finalText, "due-process-complaint.pdf");
+    if (blob && onSavePdf) onSavePdf(blob, "due-process-complaint.pdf");
+  };
   const copyToClipboard = () => {
     navigator.clipboard.writeText(finalText).then(() => alert("Copied."));
   };
@@ -5080,7 +5128,7 @@ function FormalFieldsForm({ values, onChange, onSubmit, onCancel, mode, neededFo
   );
 }
 
-function OutputCard({ id, def, content, loading, onRegenerate }) {
+function OutputCard({ id, def, content, loading, onRegenerate, onSavePdf }) {
   const [open, setOpen] = useState(true);
   const [editingText, setEditingText] = useState(null);
   const [editing, setEditing] = useState(false);
@@ -5098,7 +5146,11 @@ function OutputCard({ id, def, content, loading, onRegenerate }) {
 
   const currentText = editingText != null ? editingText : (typeof content === "string" ? content : "");
 
-  const downloadAsPdf = () => downloadPdf(currentText, `${id.replace(/_/g, "-")}.pdf`);
+  const downloadAsPdf = () => {
+    const fn = `${id.replace(/_/g, "-")}.pdf`;
+    const blob = downloadPdf(currentText, fn);
+    if (blob && onSavePdf) onSavePdf(blob, fn);
+  };
   const copyText = () => {
     navigator.clipboard.writeText(currentText).then(() => alert("Copied."));
   };
@@ -5260,7 +5312,7 @@ function OutputCard({ id, def, content, loading, onRegenerate }) {
   );
 }
 
-function OutputsPanel({ requested, outputs, loading, onRegenerate }) {
+function OutputsPanel({ requested, outputs, loading, onRegenerate, onSavePdf }) {
   if (!requested || requested.length === 0) return null;
   // Filter out full_complaint — that has its own dedicated section
   const items = requested.filter((id) => id !== "full_complaint" && OUTPUT_LIBRARY[id]);
@@ -5281,6 +5333,7 @@ function OutputsPanel({ requested, outputs, loading, onRegenerate }) {
           content={outputs[id]}
           loading={loading[id]}
           onRegenerate={onRegenerate}
+          onSavePdf={onSavePdf}
         />
       ))}
     </div>
@@ -5983,6 +6036,15 @@ function ChatTool() {
         result = await callClaudeForText(systemPrompt, userMsg);
       }
       setOutputs((o) => ({ ...o, [outputId]: result }));
+      // Step 3: persist letter/summary outputs (string content → a PDF letter)
+      // to the per-user bucket. Structured outputs (checklist, action
+      // recommendations) are objects rendered as lists, not letter PDFs, so
+      // they're skipped. Auth-only; filename matches OutputCard's download name.
+      if (sb && authUser && typeof result === "string" && result.trim()) {
+        const fn = `${outputId.replace(/_/g, "-")}.pdf`;
+        const blob = pdfBlobFromText(result);
+        if (blob) saveGeneratedDoc(authUser.id, fn, blob).catch(() => {});
+      }
     } catch (e) {
       setOutputs((o) => ({
         ...o,
@@ -6228,14 +6290,31 @@ function ChatTool() {
       // as stage 1, since it reproduces the whole draft.
       const cleaned = await callClaudeForText(DELAWYER_PROMPT, stage1, 6000);
 
-      setDraft(cleaned || stage1);
+      const finalDraft = cleaned || stage1;
+      setDraft(finalDraft);
       setDraftEdited(null);
       setReviewChecks({ accuracy: false, dates: false, remedy: false });
+      // Step 3: persist the generated complaint to the per-user bucket so it's
+      // available from the account page even if the parent never clicks
+      // download. Auth-only; anonymous generates nothing server-side. Edits made
+      // in the review panel are captured separately on download (onSavePdf).
+      if (sb && authUser) {
+        const blob = pdfBlobFromText(finalDraft);
+        if (blob) saveGeneratedDoc(authUser.id, "due-process-complaint.pdf", blob).catch(() => {});
+      }
     } catch (e) {
       setError("Couldn't generate the draft — " + (e.message || "unknown error"));
     } finally {
       setDrafting(false);
     }
+  };
+
+  // Step 3: when the parent downloads a generated PDF, persist the exact same
+  // bytes to the bucket (captures any edits they made in the panel, and keeps
+  // the stored file byte-identical to what they took). Auth-only; the download
+  // itself is unaffected for anonymous users.
+  const savePdf = (blob, filename) => {
+    if (sb && authUser && blob) saveGeneratedDoc(authUser.id, filename, blob).catch(() => {});
   };
 
   // Auto-resume on load: if the thread ends with a user message that never got
@@ -6780,6 +6859,7 @@ function ChatTool() {
                 });
                 setTimeout(() => generateOutput(id), 50);
               }}
+              onSavePdf={savePdf}
             />
           </div>
         )}
@@ -6826,6 +6906,7 @@ function ChatTool() {
             onCheckChange={(k, v) => setReviewChecks((r) => ({ ...r, [k]: v }))}
             onRegenerate={() => runDrafter()}
             drafting={drafting}
+            onSavePdf={savePdf}
           />
         )}
 
