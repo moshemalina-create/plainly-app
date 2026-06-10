@@ -3813,9 +3813,20 @@ function pdfBlobFromText(text) {
 // failure (the on-screen download still works regardless). Module-level so the
 // deferred Step 5 upgrade path can replay it over in-tab generated docs.
 async function saveGeneratedDoc(userId, filename, blob) {
-  if (!sb || !userId || !blob) return;
+  if (!sb || !blob) return;
+  // A generated doc must ALWAYS nest under the user's own uid folder — the
+  // storage RLS policies key on (storage.foldername(name))[1] = auth.uid()::text,
+  // so a root-level object (no uid segment) falls OUTSIDE the per-user
+  // protection. Refuse to write anything that wouldn't nest under "<uid>/".
+  const uid = typeof userId === "string" ? userId.trim().replace(/^\/+|\/+$/g, "") : "";
+  const name = typeof filename === "string" ? filename.trim().replace(/^\/+/, "") : "";
+  if (!uid || !name || name.indexOf("/") !== -1) return; // no uid, no name, or a path-bearing name
+  const path = `${uid}/${name}`;
+  // Belt-and-suspenders: the first path segment MUST be the uid folder, or we
+  // don't write at all (never the bucket root).
+  if (path.split("/")[0] !== uid) return;
   try {
-    await sb.storage.from("generated-docs").upload(`${userId}/${filename}`, blob, {
+    await sb.storage.from("generated-docs").upload(path, blob, {
       contentType: "application/pdf",
       upsert: true,
     });
