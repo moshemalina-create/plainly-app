@@ -24,10 +24,20 @@ create table if not exists public.cases (
   recap              text,
   context_narrative  text,
   parent_notes       text,
+  -- Step 3: shallow headline ledger of documents the parent uploaded. Each entry
+  -- is { filename, date_reviewed, doc_type, headline_extraction } — type/date/
+  -- high-level findings only, NEVER the raw file, service minutes, goal language,
+  -- classification codes, or verbatim quotes (see docs/accounts-persistence.md
+  -- Section 7). Covered by the same per-user RLS as the rest of the row.
+  docs_reviewed      jsonb       not null default '[]'::jsonb,
   created_at         timestamptz not null default now(),
   last_session_at    timestamptz,
   updated_at         timestamptz not null default now()
 );
+
+-- Step 3: add docs_reviewed to a cases table created before Step 3. Idempotent,
+-- so this whole script stays safely re-runnable on an existing deployment.
+alter table public.cases add column if not exists docs_reviewed jsonb not null default '[]'::jsonb;
 
 alter table public.cases enable row level security;
 

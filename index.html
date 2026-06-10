@@ -2316,6 +2316,15 @@ When a parent attaches a document, do NOT immediately analyze it at them. Acknow
 
 Once a document is in the conversation, its text appears in an UPLOADED DOCUMENTS section appended below. Treat that text as the real document the parent shared. Reference specifics naturally — service amounts, goal language, dates, classification, who signed what. Never invent anything that isn't actually there. If a document shows as truncated, tell the parent you've read most of it and ask them to point you to a specific section or page if you need a part you can't see. Documents can be any type; work out what each one is from its contents and use it accordingly.
 
+PREVIOUSLY REVIEWED DOCUMENTS (returning parents)
+You may see a PREVIOUSLY REVIEWED DOCUMENTS section below. These are SHALLOW HEADLINES of documents the parent shared in an earlier conversation. To protect the family's privacy, Plainly does NOT keep the original files between sessions — so for these you have only the gist (type, date, a high-level finding), NOT the full text and NOT the specifics (exact services, goal wording, classification, scores).
+
+How to handle them:
+- You DO know these documents existed and roughly what they showed. Speak to them confidently at that level — don't act confused about whether you've seen the document, and don't pretend you still have its details. (Being wishy-washy about whether you have the document is exactly the confusion to avoid.)
+- Do NOT preemptively ask the parent to re-upload on every return. If they just want to talk through next steps, the headline is plenty — use it and keep going.
+- Ask for a re-upload ONLY when the task genuinely needs detail the headline can't supply — e.g., drafting or finalizing a complaint, or answering a question that turns on exact service levels, goal language, or scores. When that moment comes, recall the headline, give the honest privacy reason, and ask for the file. For example: "While we previously reviewed the IEP from [date], which showed deficiencies in reading, writing, and speech, Plainly doesn't keep the original document between sessions to protect your and your child's privacy. Could you upload it again here, and I'll have exactly what I need to [draft the complaint / answer that precisely]?"
+- Once they re-upload, it appears in UPLOADED DOCUMENTS with its full text — work from that as normal.
+
 WAIT-CHECKS — surface IMMEDIATELY, the moment they come up
 Some things are time-sensitive, and a parent can lose rights simply by not knowing. The moment one applies, raise it in your very next reply — don't save it.
 - Private school in play (considering, planning, or already enrolled): explain the 10-day notice rule plainly — to preserve the strongest tuition-reimbursement claim, NY parents either tell the district at the most recent CSE meeting that they reject the program and intend to enroll privately at public expense, OR give written notice at least 10 business days before pulling the child out. Ask whether they've done either. Set wait_check_just_surfaced = "ten_day_notice".
@@ -2876,6 +2885,34 @@ DO NOT
 - Flag elements that are merely suboptimal but meet basic requirements.
 - Invent facts not in the extraction.
 - Produce a complaint or recommend specific drafting.`;
+
+// ============================================================================
+// HEADLINE EXTRACT PROMPT (Step 3 — docs_reviewed ledger)
+// ============================================================================
+// Deliberately SHALLOW. This is NOT the rich IEP_EXTRACT_PROMPT — it is a
+// privacy-preserving headline, with the floor AND the ceiling stated explicitly
+// (the natural gravity of an extraction prompt is to be thorough, and
+// thoroughness here defeats the entire point). The headline is what survives
+// between sessions; the raw document is discarded. See
+// docs/accounts-persistence.md Section 7.
+const HEADLINE_EXTRACT_PROMPT = `You produce a deliberately SHALLOW, privacy-preserving "headline" of a document a parent uploaded in a New York special-education matter. This headline is the ONLY thing kept between sessions — the original document is discarded and never stored. Your job is to capture just enough for a future conversation to recognize the document and speak to its gist, and NO MORE.
+
+Return ONLY a JSON object with exactly these keys:
+{
+  "doc_type": "short label, e.g. 'IEP', 'Neuropsychological evaluation', 'Speech-language evaluation', 'Progress report', 'Prior written notice'",
+  "date_conducted": "the document's own date if clearly stated (YYYY-MM-DD or as written); otherwise null",
+  "source": "the evaluator, author, or issuing office if relevant (e.g. 'NYC DOE', 'Dr. Smith, school psychologist'); otherwise null",
+  "headline_findings": "ONE short, high-level phrase or sentence at the altitude of 'deficiencies in reading, writing, and speech' or 'recommends more intensive reading support'"
+}
+
+CEILING — you MUST NOT include any of the following, in any field:
+- exact service minutes, frequencies, ratios, or levels (no "3x30 SETSS", no "1:1");
+- goal-by-goal language or any verbatim quotes from the document;
+- classification codes or specific disability classifications;
+- standardized test scores, subtest scores, or percentiles;
+- any specific numbers, dates beyond date_conducted, or names beyond source.
+
+Keep headline_findings general and brief. If the document is unclear or you are unsure, prefer a vaguer, higher-level summary over guessing specifics. Output the JSON object and nothing else.`;
 
 // ============================================================================
 // CHECKLIST PROMPT
@@ -3631,6 +3668,66 @@ function formatDocsForPrompt(docs) {
   return blocks.join("\n\n");
 }
 
+// ============================================================================
+// STEP 3 — docs_reviewed ledger (shallow headlines of uploaded documents)
+// ============================================================================
+// PRIVACY INVARIANT: the raw upload text is NEVER written to Supabase. It lives
+// only in the in-tab `uploadedDocs` state for the active session (powering the
+// live chat) and dies with the tab. ONLY the shallow headline below reaches the
+// server. "Discard the raw file" = we simply never persist it. See
+// docs/accounts-persistence.md Section 7.
+//
+// Both helpers are module-level (no React deps beyond the global `sb`) so the
+// deferred Step 5 anonymous->account upgrade can replay them over the in-tab
+// docs at save time.
+
+// Generate the shallow headline for one uploaded document. Returns a ledger
+// entry, or null on any failure — a failed headline must never block the chat
+// or fabricate detail.
+async function extractHeadlineForDoc(filename, text) {
+  if (!text || !text.trim()) return null;
+  try {
+    const h = await callClaudeForJSON(
+      HEADLINE_EXTRACT_PROMPT,
+      "Produce the shallow headline for this document. Return only the JSON object.\n\n" +
+        text.slice(0, DOC_CHAR_CAP)
+    );
+    return {
+      filename,
+      date_reviewed: new Date().toISOString().slice(0, 10),
+      doc_type: (h && h.doc_type) || "Document",
+      date_conducted: (h && h.date_conducted) || null,
+      source: (h && h.source) || null,
+      headline_extraction: (h && h.headline_findings) || "",
+    };
+  } catch (e) {
+    return null;
+  }
+}
+
+// Append one headline entry to this user's docs_reviewed ledger (read-merge-
+// write, under the user's own RLS-scoped session). De-dupes on filename so
+// re-attaching the same file replaces rather than piles up. Auth is the
+// caller's responsibility; this is silent-on-failure (the ledger is a
+// convenience and must never block the chat).
+async function appendDocReviewed(userId, entry) {
+  if (!sb || !userId || !entry) return;
+  try {
+    const { data } = await sb.from("cases")
+      .select("docs_reviewed")
+      .eq("user_id", userId)
+      .maybeSingle();
+    const existing = data && Array.isArray(data.docs_reviewed) ? data.docs_reviewed : [];
+    const merged = existing.filter((d) => d.filename !== entry.filename).concat([entry]);
+    await sb.from("cases").upsert(
+      { user_id: userId, docs_reviewed: merged, updated_at: new Date().toISOString() },
+      { onConflict: "user_id" }
+    );
+  } catch (e) {
+    /* silent — never blocks the chat */
+  }
+}
+
 // Normalize typographic characters to ASCII for the PDF only. jsPDF's standard
 // fonts are WinAnsi-encoded and render em-dashes / curly quotes / ellipses as
 // garbage. We do this ONLY for the string handed to jsPDF — on-screen text and
@@ -3646,17 +3743,15 @@ function normalizeForPdf(text) {
     .replace(/•/g, "*");
 }
 
-// Generate and download a clean, plain business-letter PDF from text. No
-// branding — this is the parent's document. Preserves the source's line breaks
-// (address blocks, signature blocks) and wraps long lines, paginating as
-// needed. If jsPDF failed to load, degrades gracefully to a clipboard copy.
-function downloadPdf(text, filename) {
+// Build a clean, plain business-letter jsPDF doc from text. No branding — this
+// is the parent's document. Preserves the source's line breaks (address blocks,
+// signature blocks) and wraps long lines, paginating as needed. Returns the
+// jsPDF doc, or null if jsPDF failed to load. Shared by the on-screen download
+// and the Step 3 bucket-storage path, so the stored file is byte-identical to
+// what the parent downloads.
+function buildPdfDoc(text) {
   const JsPDF = window.jspdf && window.jspdf.jsPDF;
-  if (!JsPDF) {
-    try { navigator.clipboard.writeText(text); } catch (e) {}
-    alert("PDF export isn't available right now — I've copied the text to your clipboard instead, so you can paste it into a document or email.");
-    return;
-  }
+  if (!JsPDF) return null;
   const doc = new JsPDF({ unit: "pt", format: "letter" });
   const margin = 72; // 1 inch
   const pageWidth = doc.internal.pageSize.getWidth();
@@ -3679,7 +3774,65 @@ function downloadPdf(text, filename) {
       y += lineHeight;
     }
   }
+  return doc;
+}
+
+// Generate and download the PDF. Returns the rendered PDF Blob (so callers can
+// also persist the exact same bytes), or null if jsPDF was unavailable (in
+// which case we fall back to copying the text to the clipboard).
+function downloadPdf(text, filename) {
+  const doc = buildPdfDoc(text);
+  if (!doc) {
+    try { navigator.clipboard.writeText(text); } catch (e) {}
+    alert("PDF export isn't available right now — I've copied the text to your clipboard instead, so you can paste it into a document or email.");
+    return null;
+  }
   doc.save(filename);
+  return doc.output("blob");
+}
+
+// Render a PDF Blob from text without triggering a download (used to store a
+// generated document at generation time). Returns null if jsPDF is unavailable.
+function pdfBlobFromText(text) {
+  const doc = buildPdfDoc(text);
+  return doc ? doc.output("blob") : null;
+}
+
+// ============================================================================
+// STEP 3 — generated-doc storage (private per-user bucket)
+// ============================================================================
+// Store a generated document (complaint, letter) as a PDF Blob in the private
+// 'generated-docs' bucket, under the user's own uid folder so the storage RLS
+// policies scope it to them (the storage twin of the table RLS — see
+// supabase/storage.sql). These ARE sensitive (a complaint quotes the child's
+// classification and services); data-minimization does not make them
+// non-sensitive, so they get the same per-user protection as everything else.
+//
+// upsert by stable filename: regenerating a doc overwrites the prior version
+// rather than spawning orphans. Auth is the caller's responsibility; silent on
+// failure (the on-screen download still works regardless). Module-level so the
+// deferred Step 5 upgrade path can replay it over in-tab generated docs.
+async function saveGeneratedDoc(userId, filename, blob) {
+  if (!sb || !blob) return;
+  // A generated doc must ALWAYS nest under the user's own uid folder — the
+  // storage RLS policies key on (storage.foldername(name))[1] = auth.uid()::text,
+  // so a root-level object (no uid segment) falls OUTSIDE the per-user
+  // protection. Refuse to write anything that wouldn't nest under "<uid>/".
+  const uid = typeof userId === "string" ? userId.trim().replace(/^\/+|\/+$/g, "") : "";
+  const name = typeof filename === "string" ? filename.trim().replace(/^\/+/, "") : "";
+  if (!uid || !name || name.indexOf("/") !== -1) return; // no uid, no name, or a path-bearing name
+  const path = `${uid}/${name}`;
+  // Belt-and-suspenders: the first path segment MUST be the uid folder, or we
+  // don't write at all (never the bucket root).
+  if (path.split("/")[0] !== uid) return;
+  try {
+    await sb.storage.from("generated-docs").upload(path, blob, {
+      contentType: "application/pdf",
+      upsert: true,
+    });
+  } catch (e) {
+    /* silent — local download is unaffected */
+  }
 }
 
 // ============================================================================
@@ -4777,7 +4930,7 @@ function TriageSection({ result, loading }) {
   );
 }
 
-function DraftReview({ draft, edited, onEditChange, checks, onCheckChange, onRegenerate, drafting }) {
+function DraftReview({ draft, edited, onEditChange, checks, onCheckChange, onRegenerate, drafting, onSavePdf }) {
   const [editing, setEditing] = useState(false);
   if (drafting) {
     return (
@@ -4795,7 +4948,10 @@ function DraftReview({ draft, edited, onEditChange, checks, onCheckChange, onReg
   const finalText = edited != null ? edited : draft;
   const allChecked = checks.accuracy && checks.dates && checks.remedy;
 
-  const downloadAsPdf = () => downloadPdf(finalText, "due-process-complaint.pdf");
+  const downloadAsPdf = () => {
+    const blob = downloadPdf(finalText, "due-process-complaint.pdf");
+    if (blob && onSavePdf) onSavePdf(blob, "due-process-complaint.pdf");
+  };
   const copyToClipboard = () => {
     navigator.clipboard.writeText(finalText).then(() => alert("Copied."));
   };
@@ -4983,7 +5139,7 @@ function FormalFieldsForm({ values, onChange, onSubmit, onCancel, mode, neededFo
   );
 }
 
-function OutputCard({ id, def, content, loading, onRegenerate }) {
+function OutputCard({ id, def, content, loading, onRegenerate, onSavePdf }) {
   const [open, setOpen] = useState(true);
   const [editingText, setEditingText] = useState(null);
   const [editing, setEditing] = useState(false);
@@ -5001,7 +5157,11 @@ function OutputCard({ id, def, content, loading, onRegenerate }) {
 
   const currentText = editingText != null ? editingText : (typeof content === "string" ? content : "");
 
-  const downloadAsPdf = () => downloadPdf(currentText, `${id.replace(/_/g, "-")}.pdf`);
+  const downloadAsPdf = () => {
+    const fn = `${id.replace(/_/g, "-")}.pdf`;
+    const blob = downloadPdf(currentText, fn);
+    if (blob && onSavePdf) onSavePdf(blob, fn);
+  };
   const copyText = () => {
     navigator.clipboard.writeText(currentText).then(() => alert("Copied."));
   };
@@ -5163,7 +5323,7 @@ function OutputCard({ id, def, content, loading, onRegenerate }) {
   );
 }
 
-function OutputsPanel({ requested, outputs, loading, onRegenerate }) {
+function OutputsPanel({ requested, outputs, loading, onRegenerate, onSavePdf }) {
   if (!requested || requested.length === 0) return null;
   // Filter out full_complaint — that has its own dedicated section
   const items = requested.filter((id) => id !== "full_complaint" && OUTPUT_LIBRARY[id]);
@@ -5184,6 +5344,7 @@ function OutputsPanel({ requested, outputs, loading, onRegenerate }) {
           content={outputs[id]}
           loading={loading[id]}
           onRegenerate={onRegenerate}
+          onSavePdf={onSavePdf}
         />
       ))}
     </div>
@@ -5593,6 +5754,11 @@ function ChatTool() {
   // every turn (see processCall) so the assistant can reference the documents
   // naturally. Distinct from the preserved IEP-assessment pipeline (iep* state).
   const [uploadedDocs, setUploadedDocs] = useState([]);
+  // Step 3: shallow headlines of documents reviewed in PRIOR sessions, loaded
+  // from the server on return. Injected into the chat so it recognizes a
+  // document it no longer holds in full and can ask for re-upload when a task
+  // needs specifics (see processCall + CHAT_ADVOCATE_PROMPT).
+  const [docsReviewed, setDocsReviewed] = useState([]);
   const [attachError, setAttachError] = useState(null);
   const [attaching, setAttaching] = useState(false);
 
@@ -5720,12 +5886,15 @@ function ChatTool() {
     (async () => {
       try {
         const { data } = await sb.from("cases")
-          .select("intake, formal_fields, parent_notes")
+          .select("intake, formal_fields, parent_notes, docs_reviewed")
           .eq("user_id", authUser.id)
           .maybeSingle();
         if (active && data) {
           // parent_notes is case-level — load it regardless, so the chat can use it.
           if (typeof data.parent_notes === "string") setParentNotes(data.parent_notes);
+          // docs_reviewed (shallow headlines) — also load regardless, so even a
+          // mid-tab reload keeps the prior-document context the chat speaks to.
+          if (Array.isArray(data.docs_reviewed)) setDocsReviewed(data.docs_reviewed);
           // Hydrate facts only on a genuine return (no live in-tab conversation);
           // a mid-tab reload keeps its in-tab state untouched.
           if (!hadLocalSessionRef.current) {
@@ -5878,6 +6047,15 @@ function ChatTool() {
         result = await callClaudeForText(systemPrompt, userMsg);
       }
       setOutputs((o) => ({ ...o, [outputId]: result }));
+      // Step 3: persist letter/summary outputs (string content → a PDF letter)
+      // to the per-user bucket. Structured outputs (checklist, action
+      // recommendations) are objects rendered as lists, not letter PDFs, so
+      // they're skipped. Auth-only; filename matches OutputCard's download name.
+      if (sb && authUser && typeof result === "string" && result.trim()) {
+        const fn = `${outputId.replace(/_/g, "-")}.pdf`;
+        const blob = pdfBlobFromText(result);
+        if (blob) saveGeneratedDoc(authUser.id, fn, blob).catch(() => {});
+      }
     } catch (e) {
       setOutputs((o) => ({
         ...o,
@@ -6123,14 +6301,31 @@ function ChatTool() {
       // as stage 1, since it reproduces the whole draft.
       const cleaned = await callClaudeForText(DELAWYER_PROMPT, stage1, 6000);
 
-      setDraft(cleaned || stage1);
+      const finalDraft = cleaned || stage1;
+      setDraft(finalDraft);
       setDraftEdited(null);
       setReviewChecks({ accuracy: false, dates: false, remedy: false });
+      // Step 3: persist the generated complaint to the per-user bucket so it's
+      // available from the account page even if the parent never clicks
+      // download. Auth-only; anonymous generates nothing server-side. Edits made
+      // in the review panel are captured separately on download (onSavePdf).
+      if (sb && authUser) {
+        const blob = pdfBlobFromText(finalDraft);
+        if (blob) saveGeneratedDoc(authUser.id, "due-process-complaint.pdf", blob).catch(() => {});
+      }
     } catch (e) {
       setError("Couldn't generate the draft — " + (e.message || "unknown error"));
     } finally {
       setDrafting(false);
     }
+  };
+
+  // Step 3: when the parent downloads a generated PDF, persist the exact same
+  // bytes to the bucket (captures any edits they made in the panel, and keeps
+  // the stored file byte-identical to what they took). Auth-only; the download
+  // itself is unaffected for anonymous users.
+  const savePdf = (blob, filename) => {
+    if (sb && authUser && blob) saveGeneratedDoc(authUser.id, filename, blob).catch(() => {});
   };
 
   // Auto-resume on load: if the thread ends with a user message that never got
@@ -6203,6 +6398,27 @@ function ChatTool() {
     const docsBlock = formatDocsForPrompt(docs);
     if (docsBlock) {
       baseSystem += "\n\n--- UPLOADED DOCUMENTS ---\n" + docsBlock;
+    }
+    // Step 3: shallow headlines of documents reviewed in PRIOR sessions. The
+    // raw originals were discarded; only these gists remain. Exclude any doc
+    // attached in full THIS turn (its full text is already above). The chat is
+    // told (in CHAT_ADVOCATE_PROMPT) to recognize these, and to ask for a
+    // re-upload ONLY when a task needs specifics the headline can't supply.
+    const attachedNames = new Set((docs || []).map((d) => d.name));
+    const priorHeadlines = (docsReviewed || []).filter((d) => d && !attachedNames.has(d.filename));
+    if (priorHeadlines.length > 0) {
+      baseSystem +=
+        "\n\n--- PREVIOUSLY REVIEWED DOCUMENTS (headline only — the originals are NOT retained; you do NOT have their full text or specifics) ---\n" +
+        priorHeadlines
+          .map((d) => {
+            const bits = [d.doc_type || "Document"];
+            if (d.date_conducted) bits.push(`dated ${d.date_conducted}`);
+            if (d.source) bits.push(`from ${d.source}`);
+            const head = bits.join(", ");
+            const findings = d.headline_extraction ? ` — ${d.headline_extraction}` : "";
+            return `- ${d.filename}: ${head}${findings}`;
+          })
+          .join("\n");
     }
 
     let parsed;
@@ -6283,6 +6499,17 @@ function ChatTool() {
       }
       const newDocs = [...uploadedDocs, { name: file.name, text }];
       setUploadedDocs(newDocs);
+
+      // Step 3: record a shallow headline of this upload in the parent's ledger,
+      // so a future return recognizes the document (and can ask for re-upload
+      // when specifics are needed). Auth-only — anonymous sessions write nothing
+      // server-side. Raw `text` is NOT persisted; only the headline. Fire-and-
+      // forget so it never gates this chat turn.
+      if (sb && authUser) {
+        extractHeadlineForDoc(file.name, text)
+          .then((entry) => entry && appendDocReviewed(authUser.id, entry))
+          .catch(() => {});
+      }
 
       const newMsgs = [...messages, { role: "user", content: `I've attached a document: ${file.name}` }];
       setMessages(newMsgs);
@@ -6643,6 +6870,7 @@ function ChatTool() {
                 });
                 setTimeout(() => generateOutput(id), 50);
               }}
+              onSavePdf={savePdf}
             />
           </div>
         )}
@@ -6689,6 +6917,7 @@ function ChatTool() {
             onCheckChange={(k, v) => setReviewChecks((r) => ({ ...r, [k]: v }))}
             onRegenerate={() => runDrafter()}
             drafting={drafting}
+            onSavePdf={savePdf}
           />
         )}
 
@@ -6917,6 +7146,9 @@ function AccountPage() {
   const [caseRow, setCaseRow] = useState(null);
   const [notes, setNotes] = useState("");
   const [notesStatus, setNotesStatus] = useState("idle"); // idle | saving | saved
+  const [docsReviewed, setDocsReviewed] = useState([]);   // headline ledger (read-only)
+  const [genFiles, setGenFiles] = useState([]);           // generated docs in the bucket
+  const [downloadingFile, setDownloadingFile] = useState(null); // filename currently downloading
 
   useEffect(() => {
     if (!authReady || authLoading || !user || !sb) return;
@@ -6941,24 +7173,61 @@ function AccountPage() {
           }
         } catch (e) { /* regen failure → just show whatever recap exists */ }
       }
-      // Read recap + notes + timestamps. NEVER select context_narrative — the
-      // chat-facing briefing stays server-side per the access posture.
+      // Read recap + notes + timestamps + the docs_reviewed ledger. NEVER select
+      // context_narrative — the chat-facing briefing stays server-side per the
+      // access posture.
       try {
         const { data } = await sb.from("cases")
-          .select("recap, parent_notes, last_session_at, updated_at, created_at")
+          .select("recap, parent_notes, docs_reviewed, last_session_at, updated_at, created_at")
           .eq("user_id", user.id)
           .maybeSingle();
         if (active) {
           setCaseRow(data || {});
           setNotes((data && data.parent_notes) || "");
+          setDocsReviewed((data && Array.isArray(data.docs_reviewed)) ? data.docs_reviewed : []);
           setPhase("ready");
         }
       } catch (e) {
         if (active) { setCaseRow({}); setPhase("ready"); }
       }
+      // List the parent's generated documents from their own bucket folder.
+      // RLS-scoped to their uid folder; failure just leaves the list empty.
+      try {
+        const { data: files } = await sb.storage
+          .from("generated-docs")
+          .list(user.id, { limit: 100, sortBy: { column: "name", order: "asc" } });
+        if (active && Array.isArray(files)) {
+          setGenFiles(files.filter((f) => f && f.name && !f.name.startsWith(".")));
+        }
+      } catch (e) { /* no files / offline → empty list */ }
     })();
     return () => { active = false; };
   }, [authLoading, user]);
+
+  // Download one generated document from the bucket (RLS-scoped to the user's
+  // own folder) and save it locally.
+  const downloadGenFile = async (name) => {
+    if (!sb || !user) return;
+    setDownloadingFile(name);
+    try {
+      const { data, error } = await sb.storage
+        .from("generated-docs")
+        .download(`${user.id}/${name}`);
+      if (error || !data) throw error || new Error("no data");
+      const url = URL.createObjectURL(data);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = name;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } catch (e) {
+      alert("Couldn't download that document just now — please try again in a moment.");
+    } finally {
+      setDownloadingFile(null);
+    }
+  };
 
   if (!authReady) {
     return (
@@ -7030,6 +7299,55 @@ function AccountPage() {
         <button className="btn btn-ghost" onClick={authSignOut}>Log out</button>
       </div>
 
+      {docsReviewed.length > 0 && (
+        <div className="card" style={{ marginTop: 22 }}>
+          <h3 className="sub">Docs reviewed</h3>
+          <p className="help">
+            Documents you've shared with Plainly. To protect your and your child's
+            privacy, only a short summary is kept here — never the original file. If
+            we need the specifics again, I'll ask you to re-upload it.
+          </p>
+          <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
+            {docsReviewed.map((d, i) => (
+              <li key={i} style={{ padding: "10px 0", borderTop: i ? "1px solid var(--border-soft)" : "none" }}>
+                <div style={{ fontWeight: 500 }}>
+                  {d.doc_type || "Document"}{d.date_conducted ? ` — ${d.date_conducted}` : ""}
+                </div>
+                {d.headline_extraction && (
+                  <div style={{ fontSize: 13, color: "var(--ink-muted)", marginTop: 2 }}>{d.headline_extraction}</div>
+                )}
+                <div style={{ fontSize: 12, color: "var(--ink-soft)", marginTop: 2 }}>
+                  {d.filename}{d.source ? ` · ${d.source}` : ""}{d.date_reviewed ? ` · reviewed ${d.date_reviewed}` : ""}
+                </div>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {genFiles.length > 0 && (
+        <div className="card" style={{ marginTop: 22 }}>
+          <h3 className="sub">Documents</h3>
+          <p className="help">
+            Documents Plainly put together with you — your complaint, letters.
+            Download them whenever you need them.
+          </p>
+          <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
+            {genFiles.map((f, i) => (
+              <li
+                key={f.name}
+                style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, padding: "10px 0", borderTop: i ? "1px solid var(--border-soft)" : "none" }}
+              >
+                <span>{f.name.replace(/\.pdf$/i, "").replace(/[-_]/g, " ").replace(/^./, (c) => c.toUpperCase())}</span>
+                <button className="btn btn-ghost" onClick={() => downloadGenFile(f.name)} disabled={downloadingFile === f.name}>
+                  {downloadingFile === f.name ? "Downloading…" : "Download"}
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
       <div className="card" style={{ marginTop: 22 }}>
         <h3 className="sub">My notes</h3>
         <p className="help">Anything you want to jot down for yourself — questions, dates, what happened at a meeting. I'll have these in our next conversation.</p>
@@ -7042,7 +7360,7 @@ function AccountPage() {
       </div>
 
       <p className="muted" style={{ marginTop: 18, fontSize: 13 }}>
-        Signed in as {user.email}. Documents you've reviewed and generated will appear here soon.
+        Signed in as {user.email}.
       </p>
     </div>
   );
