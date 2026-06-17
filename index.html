@@ -15,15 +15,29 @@
   .boot-msg .pulse:nth-child(3) { animation-delay: 0.4s; }
   @keyframes pulse { 0%, 80%, 100% { opacity: 0.3; transform: scale(0.8); } 40% { opacity: 1; transform: scale(1); } }
 </style>
-<script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
-<script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<!-- React + ReactDOM pinned to 18.3.1 ON PURPOSE. The `@18` alias resolves to
+     "latest 18.x" and can silently bump (CDN-cached for minutes), shipping an
+     untested React build to production with no code change. ReactDOM must match
+     React exactly. Pinned to the version that was already in production. -->
+<script crossorigin src="https://unpkg.com/react@18.3.1/umd/react.production.min.js"></script>
+<script crossorigin src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.production.min.js"></script>
+<!-- Pinned to 7.x ON PURPOSE. This app has no build step: JSX is transformed in
+     the browser and relies on the CLASSIC runtime (React.createElement via the
+     global React UMD above). Babel 8 flipped @babel/preset-react's default JSX
+     runtime to "automatic", which injects `import { jsx } from "react/jsx-runtime"`
+     into this non-module <script> and throws "Cannot use import statement outside
+     a module" — the whole app fails to boot. The URL was previously unpinned, so
+     Babel's 7→8 release silently broke production with no code change. Keep it pinned. -->
+<script src="https://unpkg.com/@babel/standalone@7.26.4/babel.min.js"></script>
 <!-- PDF.js for in-browser PDF text extraction (keeps PDF parsing off the server clock) -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <!-- jsPDF for generating downloadable PDFs of letters/documents (exposes window.jspdf.jsPDF) -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-<!-- Supabase JS (auth; exposes window.supabase.createClient). CDN-loaded to keep the single-file, build-free model. -->
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<!-- Supabase JS (auth; exposes window.supabase.createClient). CDN-loaded to keep the
+     single-file, build-free model. Pinned to 2.108.2 ON PURPOSE — the `@2` alias
+     resolves to "latest 2.x" and can silently bump an untested SDK into production.
+     Pinned to the version that was already in production. -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.108.2"></script>
 <script>
   // Configure the PDF.js worker (must match the library version above)
   if (window.pdfjsLib) {
