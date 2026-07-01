@@ -3,14 +3,23 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<meta name="description" content="Plainly — a free tool that helps New York parents challenge IEP and special education decisions, in plain English, without a lawyer." />
-<title>Plainly — NY special education, in plain English</title>
+<meta name="description" content="Be Heard is a free tool that helps New York parents challenge IEP and special education decisions and get their child the services they need — without a lawyer, without legalese." />
+<title>Be Heard — get your child the services they need</title>
+<link rel="icon" type="image/svg+xml" href="/brand/beheard-favicon.svg" />
+<meta property="og:type" content="website" />
+<meta property="og:title" content="Be Heard — get your child the services they need" />
+<meta property="og:description" content="A free tool that helps New York parents challenge IEP and special education decisions and get their child the services they need — without a lawyer, without legalese." />
+<meta property="og:image" content="/brand/beheard-lockup-light.svg" />
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:title" content="Be Heard — get your child the services they need" />
+<meta name="twitter:description" content="A free tool that helps New York parents challenge IEP and special education decisions and get their child the services they need — without a lawyer, without legalese." />
+<meta name="twitter:image" content="/brand/beheard-lockup-light.svg" />
 <style>
   body, html { margin: 0; padding: 0; }
   /* While Babel transforms the JSX, hide the page until React renders */
   #root:empty + .boot-msg { display: block; }
   .boot-msg { display: none; padding: 60px 24px; text-align: center; font-family: Georgia, serif; color: #5A6580; }
-  .boot-msg .pulse { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #1F6F8B; margin: 0 4px; animation: pulse 1.4s ease-in-out infinite; }
+  .boot-msg .pulse { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #C8501F; margin: 0 4px; animation: pulse 1.4s ease-in-out infinite; }
   .boot-msg .pulse:nth-child(2) { animation-delay: 0.2s; }
   .boot-msg .pulse:nth-child(3) { animation-delay: 0.4s; }
   @keyframes pulse { 0%, 80%, 100% { opacity: 0.3; transform: scale(0.8); } 40% { opacity: 1; transform: scale(1); } }
@@ -48,7 +57,7 @@
 </head>
 <body>
 <div id="root"></div>
-<div class="boot-msg"><span class="pulse"></span><span class="pulse"></span><span class="pulse"></span><br/>Loading Plainly…</div>
+<div class="boot-msg"><span class="pulse"></span><span class="pulse"></span><span class="pulse"></span><br/>Loading Be Heard…</div>
 <script type="text/babel" data-presets="react">
 const { useState, useEffect, useRef } = React;
 
@@ -134,28 +143,41 @@ async function authSignOut() {
 // ============================================================================
 
 const STYLES = `
-@import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300;9..144,400;9..144,500;9..144,600&family=Newsreader:ital,wght@0,300;0,400;0,500;1,400&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300;9..144,400;9..144,500;9..144,600;9..144,800&family=Newsreader:ital,wght@0,300;0,400;0,500;1,400&display=swap');
+
+/* Self-hosted Be Heard wordmark (heaviest Fraunces display cut, logo glyphs only) */
+@font-face {
+  font-family: "BeHeard Wordmark";
+  src: url("/brand/BeHeard-Wordmark.woff2") format("woff2");
+  font-weight: 800;
+  font-display: swap;
+}
 
 :root {
-  --bg: #F5E8D4;
-  --surface: #FBF3E5;
-  --surface-2: #EFDFC5;
-  --ink: #1A2540;
-  --ink-muted: #5A6580;
-  --ink-soft: #8A8474;
-  --accent: #1F6F8B;
-  --accent-deep: #134E63;
-  --accent-soft: #DCEAF0;
-  --action: #D7522A;
-  --action-deep: #B23C18;
-  --action-soft: #FBE0D5;
+  /* Be Heard brand tokens — single source of truth (consolidated from the two
+     former :root blocks). Navy backbone + terracotta accent; no teal/green.
+     --accent* is intentionally collapsed onto the terracotta family so every
+     legacy var(--accent) consumer renders terracotta (this also auto-unifies the
+     two italic accents). */
+  --bg: #F2EADB;            /* cream page background */
+  --surface: #FBF6EC;       /* cream card / raised surface */
+  --surface-2: #EAE0CE;     /* cream sunken / inset */
+  --ink: #1B3A5B;           /* navy — headlines, body, structure */
+  --ink-muted: #5A5248;     /* secondary text / tagline */
+  --ink-soft: #8A8275;      /* meta / hints */
+  --accent: #C8501F;        /* collapsed onto terracotta (was teal/green) */
+  --accent-deep: #A8401A;
+  --accent-soft: #FBE0D5;   /* soft terracotta tint (was teal tint) */
+  --action: #C8501F;        /* terracotta — the only action color */
+  --action-deep: #A8401A;   /* action hover / pressed */
+  --action-soft: #FBE0D5;   /* soft terracotta tint */
   --warn: #B85C38;
   --warn-soft: #F2DDD0;
   --warn-deep: #8A4226;
-  --border: #DBC9A8;
-  --border-soft: #E8D8B8;
-  --shadow: 0 1px 2px rgba(26,37,64,0.05), 0 4px 12px rgba(26,37,64,0.05);
-  --shadow-lg: 0 4px 28px rgba(26,37,64,0.10);
+  --border: rgba(27, 58, 91, 0.15);       /* navy hairline */
+  --border-soft: rgba(27, 58, 91, 0.09);  /* faint navy divider */
+  --shadow: 0 1px 2px rgba(27,58,91,0.05), 0 4px 12px rgba(27,58,91,0.05);
+  --shadow-lg: 0 4px 28px rgba(27,58,91,0.10);
 }
 
 * { box-sizing: border-box; }
@@ -232,9 +254,28 @@ body, html, #root {
   text-transform: uppercase;
   letter-spacing: 0.12em;
   color: var(--ink-soft);
-  margin-left: 4px;
+  margin-left: 16px;
   font-weight: 500;
 }
+/* Be Heard live-text wordmark (replaces the ring/circle logo). "Heard" is
+   terracotta with the signature underline. */
+.bh-wordmark {
+  font-family: "BeHeard Wordmark", 'Fraunces', Georgia, serif;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  line-height: 1;
+  color: var(--ink);          /* navy "Be" */
+  display: inline-block;
+}
+.bh-wordmark .bh-heard {
+  color: var(--action);       /* terracotta "Heard" */
+  border-bottom: 0.07em solid #E8602C;  /* terracotta-lift underline (brand signature) */
+  padding-bottom: 0.04em;
+}
+.bh-wordmark--header { font-size: 24px; }
+.bh-wordmark--footer { font-size: 22px; }
+/* Inline in a heading: inherit the heading's size, render the name as the wordmark. */
+.bh-wordmark--inline { font-size: inherit; letter-spacing: -0.01em; }
 
 .site-nav {
   display: flex;
@@ -327,7 +368,7 @@ h3.sub {
   font-size: 12px;
   text-transform: uppercase;
   letter-spacing: 0.16em;
-  color: var(--accent);
+  color: var(--ink);
   font-weight: 600;
   margin-bottom: 16px;
 }
@@ -345,7 +386,7 @@ p.muted { color: var(--ink-muted); }
 p.soft { color: var(--ink-soft); font-size: 14px; }
 
 a { color: var(--accent); text-decoration-thickness: 1px; text-underline-offset: 3px; }
-a:hover { color: var(--accent-deep); }
+a:hover { color: var(--action-deep); text-decoration-thickness: 2px; }
 
 ul, ol { padding-left: 22px; margin: 0 0 16px; }
 li { margin-bottom: 8px; }
@@ -371,14 +412,18 @@ strong { font-weight: 500; color: var(--ink); }
 }
 .btn-primary { background: var(--action); color: white; }
 .btn-primary:hover { background: var(--action-deep); color: white; }
-.btn-accent { background: var(--accent); color: white; }
-.btn-accent:hover { background: var(--accent-deep); color: white; }
+.btn-accent { background: var(--action); color: white; }
+.btn-accent:hover { background: var(--action-deep); color: white; }
 .btn-secondary {
   background: transparent;
-  color: var(--ink-muted);
-  border: 1px solid var(--border);
+  color: var(--ink);
+  border: 1px solid rgba(27, 58, 91, 0.30);
 }
-.btn-secondary:hover { background: var(--surface-2); color: var(--ink); }
+.btn-secondary:hover { background: rgba(27, 58, 91, 0.04); color: var(--ink); border-color: var(--ink); }
+.btn:focus-visible, .header-cta:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(232, 96, 44, 0.35);
+}
 .btn-large { padding: 16px 32px; font-size: 17px; }
 
 .btn-row {
@@ -392,13 +437,14 @@ strong { font-weight: 500; color: var(--ink); }
 
 .card {
   background: var(--surface);
-  border: 1px solid var(--border-soft);
-  border-radius: 12px;
+  border: 1px solid var(--border);
+  border-top: 2px solid var(--ink);
+  border-radius: 0;
   padding: 28px;
   margin-bottom: 14px;
 }
 .card-accent {
-  border-left: 3px solid var(--accent);
+  border-top-color: var(--action);
 }
 .card h3 { margin-top: 0; }
 
@@ -499,22 +545,22 @@ strong { font-weight: 500; color: var(--ink); }
 
 .tile {
   background: var(--surface);
-  border: 1px solid var(--border-soft);
-  border-radius: 12px;
+  border: 1px solid var(--border);
+  border-top: 2px solid var(--ink);
+  border-radius: 0;
   padding: 24px;
   display: flex;
   flex-direction: column;
   gap: 8px;
   text-decoration: none;
   color: inherit;
-  transition: all 0.2s ease;
+  transition: border-color 0.2s ease, color 0.2s ease;
 }
 .tile:hover {
-  border-color: var(--action);
-  transform: translateY(-2px);
-  box-shadow: var(--shadow-lg);
+  border-top-color: var(--action);
   color: inherit;
 }
+.tile:hover h3 { color: #122A43; }
 .tile h3 {
   font-family: 'Fraunces', serif;
   font-weight: 500;
@@ -549,7 +595,7 @@ strong { font-weight: 500; color: var(--ink); }
 
 .hero-stat {
   display: flex;
-  gap: 28px;
+  gap: 24px;
   margin: 32px 0 0;
   flex-wrap: wrap;
   font-size: 14.5px;
@@ -560,13 +606,19 @@ strong { font-weight: 500; color: var(--ink); }
   flex-direction: column;
   gap: 2px;
 }
+.hero-stat-item + .hero-stat-item {
+  border-left: 1px solid var(--border);
+  padding-left: 24px;
+}
 .hero-stat-num {
   font-family: 'Fraunces', serif;
   font-size: 26px;
   font-weight: 500;
-  color: var(--action);
+  color: var(--ink);
   line-height: 1;
 }
+/* The single most important stat ($0 to file) stays terracotta; the others demote to navy. */
+.hero-stat-num.accent { color: var(--action); }
 
 /* ------- FAQ ------- */
 
@@ -772,11 +824,14 @@ strong { font-weight: 500; color: var(--ink); }
 /* ------- Footer ------- */
 
 .site-footer {
-  border-top: 1px solid var(--border-soft);
-  background: var(--surface);
+  background: var(--ink);
   padding: 40px 24px 32px;
   margin-top: 80px;
 }
+/* On-dark wordmark in the navy footer: cream "Be", terracotta-soft "Heard". */
+.site-footer .bh-wordmark { color: var(--bg); }
+.site-footer .bh-wordmark .bh-heard { color: #F0925E; border-bottom-color: #E8602C; }
+.footer-disclaimer a { color: #F0925E; }
 .site-footer-inner {
   max-width: 1080px;
   margin: 0 auto;
@@ -789,7 +844,7 @@ strong { font-weight: 500; color: var(--ink); }
 }
 .footer-brand p {
   font-size: 13px;
-  color: var(--ink-soft);
+  color: rgba(242, 234, 219, 0.66);
   margin-top: 8px;
   line-height: 1.5;
   max-width: 320px;
@@ -798,26 +853,26 @@ strong { font-weight: 500; color: var(--ink); }
   font-size: 11px;
   text-transform: uppercase;
   letter-spacing: 0.12em;
-  color: var(--ink-soft);
+  color: rgba(242, 234, 219, 0.55);
   font-weight: 600;
   margin: 0 0 12px;
   font-family: 'Newsreader', serif;
 }
 .footer-col a {
   display: block;
-  color: var(--ink-muted);
+  color: #F0925E;
   text-decoration: none;
   font-size: 14px;
   padding: 4px 0;
 }
-.footer-col a:hover { color: var(--ink); }
+.footer-col a:hover { color: var(--bg); }
 .footer-disclaimer {
   max-width: 1080px;
   margin: 32px auto 0;
   padding-top: 24px;
-  border-top: 1px solid var(--border-soft);
+  border-top: 1px solid rgba(242, 234, 219, 0.15);
   font-size: 12px;
-  color: var(--ink-soft);
+  color: rgba(242, 234, 219, 0.55);
   line-height: 1.6;
 }
 
@@ -949,11 +1004,11 @@ strong { font-weight: 500; color: var(--ink); }
   transition: color 0.2s ease;
 }
 .phase-bar-item.active {
-  color: var(--accent);
-  border-bottom-color: var(--accent);
+  color: var(--ink);
+  border-bottom-color: var(--ink);
 }
 .phase-bar-item.complete {
-  color: var(--accent);
+  color: var(--action);
   opacity: 0.7;
 }
 
@@ -979,8 +1034,8 @@ strong { font-weight: 500; color: var(--ink); }
   color: var(--ink);
 }
 .msg.user .msg-bubble {
-  background: var(--accent);
-  color: white;
+  background: var(--ink);
+  color: var(--bg);
 }
 .msg-bubble p { margin: 0 0 8px; }
 .msg-bubble p:last-child { margin-bottom: 0; }
@@ -1203,6 +1258,7 @@ const NAV_ITEMS = [
   { path: "/who", label: "Is this for me?" },
   { path: "/faq", label: "FAQ" },
   { path: "/resources", label: "Resources" },
+  { path: "/about", label: "About" },
 ];
 
 function Header({ route }) {
@@ -1210,10 +1266,9 @@ function Header({ route }) {
   return (
     <header className="site-header">
       <div className="site-header-inner">
-        <a href="#/" className="brand-link" onClick={(e) => { e.preventDefault(); go("/"); }}>
-          <div className="brand-mark" />
+        <a href="#/" className="brand-link" onClick={(e) => { e.preventDefault(); go("/"); }} aria-label="Be Heard — home">
           <div>
-            <span className="brand-name">Plainly</span>
+            <span className="bh-wordmark bh-wordmark--header">Be <span className="bh-heard">Heard</span></span>
             <span className="brand-mark-tag">Free · NY · Special education</span>
           </div>
         </a>
@@ -1255,9 +1310,8 @@ function Footer() {
     <footer className="site-footer">
       <div className="site-footer-inner">
         <div className="footer-brand">
-          <a href="#/" className="brand-link" onClick={(e) => { e.preventDefault(); go("/"); }}>
-            <div className="brand-mark" />
-            <span className="brand-name">Plainly</span>
+          <a href="#/" className="brand-link" onClick={(e) => { e.preventDefault(); go("/"); }} aria-label="Be Heard — home">
+            <span className="bh-wordmark bh-wordmark--footer">Be <span className="bh-heard">Heard</span></span>
           </a>
           <p>
             A free, guided tool for New York parents who want to challenge an
@@ -1279,13 +1333,13 @@ function Footer() {
         </div>
         <div className="footer-col">
           <h5>Legal</h5>
-          <a href="#/about" onClick={(e) => { e.preventDefault(); go("/about"); }}>Disclaimer</a>
+          <a href="#/disclaimer" onClick={(e) => { e.preventDefault(); go("/disclaimer"); }}>Disclaimer</a>
           <a href="#/privacy" onClick={(e) => { e.preventDefault(); go("/privacy"); }}>Privacy</a>
           <a href="#/contact" onClick={(e) => { e.preventDefault(); go("/contact"); }}>Contact</a>
         </div>
       </div>
       <div className="footer-disclaimer">
-        Plainly is not a law firm and does not provide legal advice. The drafts and
+        This tool is not a law firm and does not provide legal advice. The drafts and
         guidance produced by this tool are templates and informational content
         based on what you tell it — they do not create an attorney-client
         relationship. For complex matters, particularly involving discipline,
@@ -1310,7 +1364,7 @@ function HomePage() {
           <em>Let's fix it.</em>
         </h1>
         <p className="lede">
-          Plainly is a free tool that helps you push back when your child's IEP
+          This is a free tool that helps you push back when your child's IEP
           or special education decision isn't right — without a lawyer, without
           legalese, and without giving up. Tell us what's going on. We'll help
           you figure out what to do next.
@@ -1333,7 +1387,7 @@ function HomePage() {
             <span>of NYC public school students have an IEP</span>
           </div>
           <div className="hero-stat-item">
-            <span className="hero-stat-num">$0</span>
+            <span className="hero-stat-num accent">$0</span>
             <span>cost to file a due process complaint</span>
           </div>
         </div>
@@ -1360,7 +1414,7 @@ function HomePage() {
             <div className="rights-callout">
               <h4>The tool is free</h4>
               <p>
-                Always. There's no fee to use Plainly, no premium tier, and no
+                Always. There's no fee to use this tool, no premium tier, and no
                 catch. We built this because parents shouldn't have to choose
                 between their child's education and their savings account.
               </p>
@@ -1498,7 +1552,7 @@ function HomePage() {
           want to litigate.
         </p>
         <p>
-          We built Plainly because we think the gap between "I have a real
+          We built this tool because we think the gap between "I have a real
           problem" and "I can do something about it" is too wide. The tool is
           free, and it always will be. We're trying to close that gap.
         </p>
@@ -1532,8 +1586,8 @@ function HowPage() {
             The complaint is a written document — a letter, basically — that
             describes the problem and what you want fixed. You send it to two
             places at the same time: your school district and the New York
-            State Education Department. There's no filing fee. Plainly drafts
-            this for you in your voice.
+            State Education Department. There's no filing fee, and we draft it
+            for you in your voice.
           </p>
         </div>
         <div className="timeline-step">
@@ -1757,7 +1811,7 @@ function WhoPage() {
     <div className="page fade-in">
       <div className="eyebrow">Is this for me?</div>
       <h1 className="display" style={{ fontSize: 42 }}>
-        What kinds of <em>cases</em> Plainly handles.
+        How We Can Help
       </h1>
       <p className="lede">
         Most disagreements with the district fall into one of these categories.
@@ -1839,7 +1893,7 @@ const FAQS = [
   {
     q: "How much does this cost?",
     a: [
-      "Filing itself is free — there's no court fee. Plainly is free to use.",
+      "Filing itself is free — there's no court fee. This tool is free to use.",
       "If you decide to hire an attorney later, fees vary widely. Special education attorneys sometimes work on contingency or reduced fees, especially if you might recover fees from the district as a prevailing party. Some parent advocacy groups have low-cost or free advocates.",
     ],
   },
@@ -1867,7 +1921,7 @@ const FAQS = [
     q: "What's a 10-day notice and why does it matter?",
     a: [
       "If you're considering enrolling your child in a private school at public expense — meaning you want the district to reimburse you — there's a critical step you need to take before you actually enroll. You either need to (a) tell the district at the most recent CSE meeting that you reject their program and intend to enroll privately at public expense, or (b) give them written notice at least 10 business days before pulling your child out.",
-      "Without that notice, your tuition reimbursement claim may be reduced or denied later. Plainly can draft this letter for you in a few seconds — it's the first thing we recommend if private school is in play.",
+      "Without that notice, your tuition reimbursement claim may be reduced or denied later. We can draft this letter for you in a few seconds — it's the first thing we recommend if private school is in play.",
     ],
   },
   {
@@ -1887,8 +1941,8 @@ const FAQS = [
   {
     q: "What if I don't have all the documents?",
     a: [
-      "You can file without having every document in hand. The complaint just needs to describe what's going on — you don't need to attach exhibits at filing. Plainly will give you a personalized list of documents to gather, but missing items isn't a barrier to starting.",
-      "If the district has documents you don't, you can request your child's full educational record under FERPA — Plainly can draft that letter for you.",
+      "You can file without having every document in hand. The complaint just needs to describe what's going on — you don't need to attach exhibits at filing. We'll give you a personalized list of documents to gather, but missing items isn't a barrier to starting.",
+      "If the district has documents you don't, you can request your child's full educational record under FERPA — we can draft that letter for you.",
     ],
   },
   {
@@ -1931,7 +1985,7 @@ const FAQS = [
     q: "Is everything I tell the chat private?",
     a: [
       "What you tell the chat stays in your browser session. We don't store identifying information about your child on a server you can't control. The technology that powers the chat is Anthropic's Claude API; their data handling policies apply to messages sent during the conversation, but they're not used to train models.",
-      "When you're ready to file the actual complaint, you'll be sending information to your district and to the state — that's no longer private at that point. Plainly only helps you draft and prepare; sending and filing are decisions you make yourself.",
+      "When you're ready to file the actual complaint, you'll be sending information to your district and to the state — that's no longer private at that point. We only help you draft and prepare; sending and filing are decisions you make yourself.",
     ],
   },
 ];
@@ -2064,7 +2118,7 @@ function ResourcesPage() {
       </h1>
       <p className="lede">
         Direct links to the agencies, laws, and organizations we reference
-        throughout Plainly. Useful if you want to read the source material
+        throughout this tool. Useful if you want to read the source material
         yourself, or if you're at a stage where another organization can help.
       </p>
 
@@ -2108,48 +2162,39 @@ function AboutPage() {
     <div className="page fade-in">
       <div className="eyebrow">About</div>
       <h1 className="display" style={{ fontSize: 42 }}>
-        What Plainly is, and isn't.
+        About <span className="bh-wordmark bh-wordmark--inline">Be <span className="bh-heard">Heard</span></span>
       </h1>
 
-      <h2 className="section" style={{ marginTop: 32 }}>What we are</h2>
+      <h2 className="section" style={{ marginTop: 32 }}>How This Tool Can Help</h2>
       <p>
-        Plainly is a guided tool for New York parents who think their child's
-        special education program isn't working. We help you organize your
+        This is a guided tool for New York parents who think their child's
+        special education program isn't working: it helps you organize your
         situation, identify what kind of due process claim it might be, and
         produce real, usable documents — letters, requests, and complaint
-        drafts — in your own voice.
+        drafts — in your own voice. Most parents who have viable claims never
+        file simply because the process looks scarier than it is.
       </p>
       <p>
-        We're built on the premise that most parents who have viable claims
-        never file because the process looks scarier than it is. The legal
-        complexity is mostly translation: there are real rules, but in plain
-        English they're not impenetrable. We translate.
-      </p>
-
-      <h2 className="section">What we're not</h2>
-      <p>
-        Plainly is <strong>not a law firm</strong>. We don't represent you, and
-        using this tool doesn't create an attorney-client relationship. The
-        drafts we produce are templates personalized to your situation, but
-        they're starting points — you should review them carefully, edit as
-        needed, and decide for yourself whether to send or file them.
-      </p>
-      <p>
-        We're <strong>not a substitute for a lawyer in every situation</strong>.
-        For most everyday disputes — service amounts, classification,
-        evaluations, missed services — pro se filing is genuinely workable, and
-        most cases settle without ever seeing a hearing. But for higher-stakes
-        matters — significant tuition reimbursement claims, expulsion or
-        manifestation determination cases, or any case that escalates to a
-        formal hearing where the district has counsel — consulting a special
-        education attorney or trained advocate is worth considering. The
-        chat will be honest with you about which category your situation
-        falls into.
+        That said, it is <strong>not a law firm</strong>, it <strong>does not
+        provide legal advice</strong>, and using it does not create an
+        attorney-client relationship — we don't represent you. The drafts it
+        produces are templates personalized to your situation, but they're
+        starting points: review them carefully, edit as needed, and decide for
+        yourself whether to send or file them. It is also <strong>not a
+        substitute for a lawyer in every situation</strong> — for most everyday
+        disputes (service amounts, classification, evaluations, missed services)
+        pro se filing is genuinely workable and most cases settle without ever
+        seeing a hearing, but for higher-stakes matters like significant tuition
+        reimbursement, expulsion or manifestation determination, or any case
+        that escalates to a formal hearing where the district has counsel,
+        consulting a special education attorney or trained advocate is worth
+        considering — and the chat will be honest with you about which category
+        your situation falls into.
       </p>
 
       <h2 className="section">How AI is involved</h2>
       <p>
-        The chat that drives Plainly is powered by Anthropic's Claude. Claude
+        The chat that drives this tool is powered by Anthropic's Claude. Claude
         reads what you tell it, asks follow-up questions, identifies which
         kinds of due process claims your situation fits, and drafts the
         letters and complaint documents in plain parent voice. We've designed
@@ -2174,13 +2219,13 @@ function AboutPage() {
       <p>
         When you're ready to file an actual complaint, you'll be sending
         information to your district and to the state — that's no longer
-        private at that point. Plainly only helps you draft and prepare;
+        private at that point. We only help you draft and prepare;
         sending and filing are decisions you make yourself.
       </p>
 
       <h2 className="section">Who's behind this</h2>
       <p>
-        Plainly is built by a New York attorney with experience handling
+        This tool is built by a New York attorney with experience handling
         special education due process cases pro bono, working with engineers
         to make the process accessible to parents who can't afford or don't
         need full legal representation.
@@ -2190,6 +2235,11 @@ function AboutPage() {
       <p>
         Feedback, questions, ideas, or notes about something the tool got
         wrong? <a href="#/contact" onClick={(e) => { e.preventDefault(); go("/contact"); }}>Contact us</a>.
+      </p>
+      <p className="muted" style={{ marginTop: 24, fontSize: 14 }}>
+        <a href="#/disclaimer" onClick={(e) => { e.preventDefault(); go("/disclaimer"); }}>Legal Disclaimer</a>
+        {" · "}
+        <a href="#/privacy" onClick={(e) => { e.preventDefault(); go("/privacy"); }}>Privacy Policy</a>
       </p>
     </div>
   );
@@ -2273,6 +2323,130 @@ function PrivacyPage() {
 }
 
 // ============================================================================
+// PAGE: DISCLAIMER (legal sibling of the privacy page)
+// ============================================================================
+
+function DisclaimerPage() {
+  return (
+    <div className="page fade-in">
+      <div className="eyebrow">Legal</div>
+      <h1 className="display" style={{ fontSize: 42 }}>Disclaimer &amp; Terms of Use.</h1>
+      <p className="lede">
+        Last updated: [DATE] · This is placeholder language pending final review.
+      </p>
+      <div className="card">
+        <h3 className="sub">Not legal advice</h3>
+        <p className="muted">
+          Be Heard is a free informational and document-preparation tool for New
+          York parents navigating special education disputes. It is not a law
+          firm, it does not practice law, and nothing it provides constitutes
+          legal advice. The information, documents, and guidance offered through
+          this site are general in nature and may not apply to your specific
+          circumstances.
+        </p>
+      </div>
+      <div className="card">
+        <h3 className="sub">No attorney-client relationship</h3>
+        <p className="muted">
+          Using this site does not create an attorney-client relationship
+          between you and Be Heard, its creator, or anyone associated with it.
+          Communications you have with the tool are not protected by
+          attorney-client privilege.
+        </p>
+      </div>
+      <div className="card">
+        <h3 className="sub">Documents are starting points</h3>
+        <p className="muted">
+          Any letters, requests, or complaint drafts this tool produces are
+          templates personalized to the information you provide. They are
+          starting points, not finished legal filings. You are responsible for
+          reviewing every document for accuracy and completeness, editing it as
+          needed, and deciding whether and when to send or file it. You should
+          verify all facts, dates, deadlines, and legal requirements
+          independently before acting.
+        </p>
+      </div>
+      <div className="card">
+        <h3 className="sub">No guarantee of outcome</h3>
+        <p className="muted">
+          Be Heard does not guarantee any particular result. Special education
+          disputes are fact-specific and their outcomes depend on many factors
+          outside this tool's control. Nothing here should be understood as a
+          prediction or assurance about how your matter will be resolved.
+        </p>
+      </div>
+      <div className="card">
+        <h3 className="sub">Deadlines and time limits</h3>
+        <p className="muted">
+          Special education and due process matters are subject to strict legal
+          deadlines and statutes of limitations. While the tool may flag
+          time-sensitive issues, it cannot guarantee that every applicable
+          deadline will be identified. You are responsible for confirming and
+          meeting all deadlines that apply to your situation.
+        </p>
+      </div>
+      <div className="card">
+        <h3 className="sub">When to consult an attorney</h3>
+        <p className="muted">
+          This tool is designed for parents pursuing matters on their own, and
+          for many everyday disputes self-representation is workable. However, it
+          is not a substitute for a licensed attorney. For higher-stakes matters
+          — including significant tuition reimbursement, disciplinary or
+          manifestation-determination proceedings, or any matter that escalates
+          to a hearing where the school district is represented by counsel — you
+          should strongly consider consulting a qualified special education
+          attorney or trained advocate.
+        </p>
+      </div>
+      <div className="card">
+        <h3 className="sub">Jurisdiction</h3>
+        <p className="muted">
+          Be Heard addresses special education procedures under federal law
+          (IDEA) and New York State law and regulations. It is intended for use
+          by parents of students in New York. The information provided may not be
+          accurate or applicable in other states.
+        </p>
+      </div>
+      <div className="card">
+        <h3 className="sub">Not affiliated with any government agency or school district</h3>
+        <p className="muted">
+          Be Heard is an independent tool. It is not affiliated with, endorsed
+          by, or connected to the New York State Education Department, any school
+          district, or any government agency.
+        </p>
+      </div>
+      <div className="card">
+        <h3 className="sub">AI-generated content</h3>
+        <p className="muted">
+          This tool uses artificial intelligence to generate responses and
+          documents. AI can make mistakes, misstate facts, or produce incomplete
+          information. Always review AI-generated content critically and verify
+          anything you intend to rely on.
+        </p>
+      </div>
+      <div className="card">
+        <h3 className="sub">No warranty</h3>
+        <p className="muted">
+          This site and its content are provided "as is," without warranties of
+          any kind, express or implied, including but not limited to accuracy,
+          completeness, fitness for a particular purpose, or non-infringement. To
+          the fullest extent permitted by law, Be Heard and those associated with
+          it disclaim all liability for any loss or harm arising from your use
+          of, or reliance on, this site or the documents it produces.
+        </p>
+      </div>
+      <div className="card">
+        <h3 className="sub">Your use of this site</h3>
+        <p className="muted">
+          By using Be Heard, you acknowledge that you have read and understood
+          this disclaimer and agree to use the tool accordingly.
+        </p>
+      </div>
+    </div>
+  );
+}
+
+// ============================================================================
 // PAGE: START (chat tool — stub for site demo; real version is the standalone)
 // ============================================================================
 
@@ -2322,7 +2496,7 @@ if (typeof window !== "undefined" && !window.storage) {
   };
 
   // One-time cleanup: the previous version stored conversations in
-  // localStorage. Remove any leftover Plainly keys there so old data doesn't
+  // localStorage. Remove any leftover "plainly:" keys there so old data doesn't
   // linger in returning visitors' browsers.
   try {
     if (typeof localStorage !== "undefined") {
@@ -2407,12 +2581,12 @@ You can give an initial read on the IEP alone. But BEFORE you give a firm judgme
 - If they DON'T have it readily: do NOT stall or make them feel stuck. Keep going with what you have — give your read, draft the document they need — and tell them briefly that the evaluation would sharpen it and why: "If you can get the evaluation later, we can check whether the IEP actually matches what it found — that's often the clearest way to show the program is off." The eval strengthens the work; it is never a precondition for doing it.
 
 PREVIOUSLY REVIEWED DOCUMENTS (returning parents)
-You may see a PREVIOUSLY REVIEWED DOCUMENTS section below. These are SHALLOW HEADLINES of documents the parent shared in an earlier conversation. To protect the family's privacy, Plainly does NOT keep the original files between sessions — so for these you have only the gist (type, date, a high-level finding), NOT the full text and NOT the specifics (exact services, goal wording, classification, scores).
+You may see a PREVIOUSLY REVIEWED DOCUMENTS section below. These are SHALLOW HEADLINES of documents the parent shared in an earlier conversation. To protect the family's privacy, this tool does not keep the original files between sessions — so for these you have only the gist (type, date, a high-level finding), NOT the full text and NOT the specifics (exact services, goal wording, classification, scores).
 
 How to handle them:
 - You DO know these documents existed and roughly what they showed. Speak to them confidently at that level — don't act confused about whether you've seen the document, and don't pretend you still have its details. (Being wishy-washy about whether you have the document is exactly the confusion to avoid.)
 - Do NOT preemptively ask the parent to re-upload on every return. If they just want to talk through next steps, the headline is plenty — use it and keep going.
-- Ask for a re-upload ONLY when the task genuinely needs detail the headline can't supply — e.g., drafting or finalizing a complaint, or answering a question that turns on exact service levels, goal language, or scores. When that moment comes, recall the headline, give the honest privacy reason, and ask for the file. For example: "While we previously reviewed the IEP from [date], which showed deficiencies in reading, writing, and speech, Plainly doesn't keep the original document between sessions to protect your and your child's privacy. Could you upload it again here, and I'll have exactly what I need to [draft the complaint / answer that precisely]?"
+- Ask for a re-upload ONLY when the task genuinely needs detail the headline can't supply — e.g., drafting or finalizing a complaint, or answering a question that turns on exact service levels, goal language, or scores. When that moment comes, recall the headline, give the honest privacy reason, and ask for the file. For example: "While we previously reviewed the IEP from [date], which showed deficiencies in reading, writing, and speech, we don't keep the original document between sessions to protect your and your child's privacy. Could you upload it again here, and I'll have exactly what I need to [draft the complaint / answer that precisely]?"
 - Once they re-upload, it appears in UPLOADED DOCUMENTS with its full text — work from that as normal.
 
 WAIT-CHECKS — surface IMMEDIATELY, the moment they come up
@@ -2424,7 +2598,7 @@ Some things are time-sensitive, and a parent can lose rights simply by not knowi
 Otherwise set wait_check_just_surfaced = "none".
 
 PHYSICAL SAFETY — a brief note you append, never the lead
-Sometimes what the parent describes involves the child's physical safety — a child coming home with injuries or bruises, or hurt during a physical restraint. It's real, but it is NOT your lane and NOT what you lead with. Plainly is a special-education advocacy tool; your job is the legal direction, not guiding the parent on their child's physical safety or characterizing whether the child is in danger. So:
+Sometimes what the parent describes involves the child's physical safety — a child coming home with injuries or bruises, or hurt during a physical restraint. It's real, but it is NOT your lane and NOT what you lead with. This is a special-education advocacy tool; your job is the legal direction, not guiding the parent on their child's physical safety or characterizing whether the child is in danger. So:
 - Do NOT open with the safety piece and do NOT frame your reply around it. No alarm-openers ("that's terrifying," "I'm so worried for him"). Lead with the advocacy substance — the legal direction: the restraint-notification requirement (NY schools must notify parents when a child is physically restrained), documenting the pattern, the parent's rights, and the letter you can draft.
 - THEN, before you close the reply, append a SHORT safety note using conditional framing — surface the resources, don't elaborate, don't characterize the situation. Something like: "In terms of [child]'s physical safety — if you believe he's in danger, there are resources outside the school system: the NY State Child Abuse and Maltreatment hotline (1-800-342-3720), 911 or local police if you think he's in immediate danger, and the official NY reporting page (https://www.ny.gov/services/report-child-abuse-or-maltreatment). That's your call to make."
 Keep that note to a couple of sentences. Never assert that abuse is happening — you can't know that; the parent assesses the situation themselves. Don't become a safety or crisis resource and don't walk them through filing an abuse report — make sure they know the resources exist, then get back to the advocacy work, which is your actual job.
@@ -2478,7 +2652,7 @@ If they say yes generally without specifying ("sure," "all of those"), use your 
 If the parent just wants to talk or ask questions and hasn't accepted anything, leave parent_requested_assessment unset and outputs_to_generate empty. Never generate something they didn't agree to.
 
 AFTER YOU'VE GENERATED A DOCUMENT — mention saving, once
-The first time you hand off a generated letter or complaint in a session, and only if the ACCOUNT STATE below says the parent is NOT signed in, let them know they can keep a record. Lead with the account: if they'd like to save their case and come back to it later, they can set up a free account with the "Log in" button at the top — Plainly will keep track of their case and a copy of what you've drafted. State that plainly and confidently; it genuinely persists their case and drafts. Then, as a softer fallback for a parent who'd rather not make an account, you can offer to put together a short summary of the conversation they can save and re-upload for context next time — describe it modestly (it gives you the background again; it doesn't restore the session), don't oversell it. Keep the whole thing to a sentence or two, offered naturally after the hand-off, not a hard sell. Say it once — don't repeat it on every subsequent document. If the parent is already signed in, skip this entirely.
+The first time you hand off a generated letter or complaint in a session, and only if the ACCOUNT STATE below says the parent is NOT signed in, let them know they can keep a record. Lead with the account: if they'd like to save their case and come back to it later, they can set up a free account with the "Log in" button at the top — and we'll keep track of their case and a copy of what you've drafted. State that plainly and confidently; it genuinely persists their case and drafts. Then, as a softer fallback for a parent who'd rather not make an account, you can offer to put together a short summary of the conversation they can save and re-upload for context next time — describe it modestly (it gives you the background again; it doesn't restore the session), don't oversell it. Keep the whole thing to a sentence or two, offered naturally after the hand-off, not a hard sell. Say it once — don't repeat it on every subsequent document. If the parent is already signed in, skip this entirely.
 
 WHEN A FULL COMPLAINT IS ON THE TABLE
 A complaint needs two things you should genuinely understand before it's drafted — gathered the same way as everything else, in conversation, never as a form:
@@ -3956,24 +4130,8 @@ async function saveGeneratedDoc(userId, filename, blob) {
 // ============================================================================
 
 const CHAT_STYLES = `
-@import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500&family=Newsreader:wght@400;500&display=swap');
-
-:root {
-  --bg: #F4EFE6;
-  --surface: #FBF8F2;
-  --surface-2: #EFE7D6;
-  --ink: #1F2A37;
-  --ink-muted: #5B6470;
-  --ink-soft: #8A8474;
-  --accent: #2C5E4F;
-  --accent-deep: #1F4438;
-  --accent-soft: #DDE7E2;
-  --warn: #B85C38;
-  --warn-soft: #F2DDD0;
-  --warn-deep: #8A4226;
-  --border: #D9D0BD;
-  --border-soft: #E8DFCB;
-}
+/* Fonts + design tokens are defined once in the head <style> :root (Be Heard).
+   This stylesheet inherits them — no duplicate @import or :root here. */
 
 * { box-sizing: border-box; }
 
@@ -4049,8 +4207,8 @@ h1 em { font-style: italic; color: var(--accent); }
   background: var(--border);
   transition: background 0.3s;
 }
-.phase-seg.active { background: var(--accent); }
-.phase-seg.done { background: var(--accent-deep); }
+.phase-seg.active { background: var(--ink); }
+.phase-seg.done { background: #E8602C; }
 
 .phase-labels {
   display: flex;
@@ -4062,7 +4220,7 @@ h1 em { font-style: italic; color: var(--accent); }
   margin-bottom: 16px;
 }
 .phase-label.active, .phase-label.done {
-  color: var(--accent);
+  color: var(--ink);
   font-weight: 500;
 }
 
@@ -4089,15 +4247,15 @@ h1 em { font-style: italic; color: var(--accent); }
   word-wrap: break-word;
 }
 .bubble.assistant {
-  background: white;
-  border: 1px solid var(--border-soft);
+  background: var(--surface);
+  border: 1px solid var(--border);
   border-top-left-radius: 4px;
   align-self: flex-start;
   font-family: 'Newsreader', serif;
 }
 .bubble.parent {
-  background: var(--accent);
-  color: white;
+  background: var(--ink);
+  color: var(--bg);
   border-top-right-radius: 4px;
   align-self: flex-end;
 }
@@ -4106,8 +4264,8 @@ h1 em { font-style: italic; color: var(--accent); }
   display: inline-flex;
   gap: 4px;
   padding: 12px 16px;
-  background: white;
-  border: 1px solid var(--border-soft);
+  background: var(--surface);
+  border: 1px solid var(--border);
   border-radius: 14px;
   border-top-left-radius: 4px;
   align-self: flex-start;
@@ -4128,12 +4286,16 @@ h1 em { font-style: italic; color: var(--accent); }
 .composer {
   margin-top: 14px;
   background: var(--surface);
-  border: 1px solid var(--border-soft);
+  border: 1px solid var(--border);
   border-radius: 12px;
   padding: 10px;
   display: flex;
   gap: 8px;
   align-items: flex-end;
+}
+.composer:focus-within {
+  border-color: var(--ink);
+  box-shadow: 0 0 0 3px rgba(27, 58, 91, 0.12);
 }
 .composer textarea {
   flex: 1;
@@ -4183,14 +4345,18 @@ h1 em { font-style: italic; color: var(--accent); }
   margin-right: 8px;
 }
 .btn-primary {
-  background: var(--accent);
+  background: var(--action);
   color: white;
 }
-.btn-primary:hover { background: var(--accent-deep); }
+.btn-primary:hover { background: var(--action-deep); }
 .btn-ghost {
   background: transparent;
-  color: var(--ink-muted);
+  color: var(--ink);
   border: 1px solid var(--border);
+}
+.btn:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(232, 96, 44, 0.35);
 }
 
 .thin {
@@ -7115,7 +7281,7 @@ function LoginPage() {
       <div className="page fade-in">
         <div className="eyebrow">Accounts</div>
         <h1 className="display" style={{ fontSize: 38 }}>Accounts aren't available right now.</h1>
-        <p className="lede">You can still use Plainly without one — nothing about it requires an account.</p>
+        <p className="lede">You can still use this tool without one — nothing about it requires an account.</p>
         <button className="btn btn-primary" onClick={() => go("/start")}>Start a conversation</button>
       </div>
     );
@@ -7192,7 +7358,7 @@ function LoginPage() {
           <input type="checkbox" checked={agreed} onChange={(e) => setAgreed(e.target.checked)} style={{ marginTop: 3 }} />
           <span>
             <strong>[PLACEHOLDER — final consent wording to be supplied before launch.]</strong>{" "}
-            By creating an account I understand Plainly will store my case information — what I
+            By creating an account I understand this tool will store my case information — what I
             tell it, documents it generates, and a short summary of documents I review — so I
             can return to it later, and I agree to the terms of use and privacy policy.
           </span>
@@ -7208,7 +7374,7 @@ function LoginPage() {
       </div>
       <p className="muted" style={{ marginTop: 14 }}>
         Prefer not to make an account?{" "}
-        <a href="#/start" onClick={(e) => { e.preventDefault(); go("/start"); }}>Use Plainly without one →</a>
+        <a href="#/start" onClick={(e) => { e.preventDefault(); go("/start"); }}>Continue without an account →</a>
       </p>
     </div>
   );
@@ -7474,9 +7640,9 @@ function AccountPage() {
 
           {docsReviewed.length > 0 && (
             <div className="card">
-              <h3 className="sub">Docs Reviewed by Plainly</h3>
+              <h3 className="sub">Docs Reviewed by Be Heard</h3>
               <p className="help">
-                Documents you've shared with Plainly. To protect your and your child's
+                Documents you've shared here. To protect your and your child's
                 privacy, only a short summary is kept here — never the original file. If
                 we need the specifics again, I'll ask you to re-upload it.
               </p>
@@ -7501,11 +7667,11 @@ function AccountPage() {
 
         <div className="dash-rail">
           <div className="card">
-            <h3 className="sub">Documents Prepared by Plainly</h3>
+            <h3 className="sub">Documents Prepared by Be Heard</h3>
             {genFiles.length > 0 ? (
               <>
                 <p className="help">
-                  Documents Plainly put together with you — your complaint, letters.
+                  Documents we put together with you — your complaint, letters.
                   Download them whenever you need them.
                 </p>
                 <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
@@ -7523,7 +7689,7 @@ function AccountPage() {
                 </ul>
               </>
             ) : (
-              <p className="help">Nothing here yet. When Plainly drafts a complaint or letter with you, it'll show up here to download.</p>
+              <p className="help">Nothing here yet. When we draft a complaint or letter with you, it'll show up here to download.</p>
             )}
           </div>
         </div>
@@ -7572,6 +7738,7 @@ function App() {
     case "/about": page = <AboutPage />; break;
     case "/contact": page = <ContactPage />; break;
     case "/privacy": page = <PrivacyPage />; break;
+    case "/disclaimer": page = <DisclaimerPage />; break;
     case "/account": page = <AccountPage />; break;
     default: page = <NotFoundPage />;
   }
