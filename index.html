@@ -463,6 +463,16 @@ strong { font-weight: 500; color: var(--ink); }
 .dash-main, .dash-rail { min-width: 0; }
 .dash-main .card, .dash-rail .card { margin-bottom: 20px; }
 
+/* Notes textarea fills its card. A textarea is inline-block by default, so
+   force block + full width to guarantee it spans the section; taller by default
+   since notes tend to run long. Scoped to the dashboard so no other .field
+   textarea (drafter, letters) is affected. */
+.account-dash .dash-main .field textarea {
+  display: block;
+  width: 100%;
+  min-height: 220px;
+}
+
 @media (max-width: 720px) {
   .dash-grid { grid-template-columns: 1fr; }
 }
@@ -7422,7 +7432,7 @@ function AccountPage() {
             <h3 className="sub">My notes</h3>
             <p className="help">Anything you want to jot down for yourself — questions, dates, what happened at a meeting. I'll have these in our next conversation.</p>
             <div className="field">
-              <textarea rows={8} value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="e.g., CSE meeting is on the 14th; ask about the speech eval." />
+              <textarea rows={10} value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="e.g., CSE meeting is on the 14th; ask about the speech eval." />
             </div>
             <button className="btn btn-ghost" onClick={saveNotes} disabled={notesStatus === "saving"}>
               {notesStatus === "saving" ? "Saving…" : notesStatus === "saved" ? "Saved ✓" : "Save notes"}
