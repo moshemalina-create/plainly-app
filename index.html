@@ -4531,6 +4531,25 @@ h1 em { font-style: italic; color: var(--accent); }
   font-size: 14.5px;
 }
 
+/* Always-present "how to file" pointer on the complaint deliverable. Shown for
+   the full complaint only (DraftReview), not the lighter letters. */
+.filing-help {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 12px 16px;
+  margin: 0 0 16px;
+  font-size: 14.5px;
+  color: var(--ink);
+}
+.filing-help a {
+  color: var(--accent);
+  font-weight: 500;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.filing-help a:hover { color: var(--accent-deep); text-decoration: underline; }
+
 /* Outputs library panel */
 .outputs-panel {
   margin-top: 24px;
@@ -4995,6 +5014,13 @@ function DraftReview({ draft, edited, onEditChange, checks, onCheckChange, onReg
         I can revise.
       </p>
 
+      <div className="filing-help">
+        <strong>Once it's ready, here's how to send it in:</strong>{" "}
+        <a href="/how-to-file/" target="_blank" rel="noopener">
+          How to file your complaint →
+        </a>
+      </div>
+
       {editing ? (
         <div className="draft-paper">
           <textarea
@@ -5047,10 +5073,11 @@ function DraftReview({ draft, edited, onEditChange, checks, onCheckChange, onReg
         <div className="ready-card">
           <h4>Ready. Here's what to do next.</h4>
           <p>
-            Download or copy the draft. File it by sending to the district AND
-            to NYSED's Office of Special Education at the same time. Most NY
-            districts accept email or mail — check your district's procedure.
-            NYC DOE has its own filing portal (Impartial Hearing Office).
+            Download or copy the draft, then attach it to the official NYSED
+            cover form and mail it — the original to your school district and one
+            copy to NYSED — by certified mail, and keep a copy for yourself. The
+            full steps are here:{" "}
+            <a href="/how-to-file/" target="_blank" rel="noopener">How to file your complaint</a>.
           </p>
           <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
             <button className="btn btn-primary" onClick={downloadAsPdf}>Download PDF</button>

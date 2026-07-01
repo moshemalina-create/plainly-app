@@ -1,0 +1,242 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>How to file your complaint · Plainly</title>
+  <meta name="description" content="How to file your due process complaint in New York: download the NYSED cover form, attach your Plainly-drafted letter, and mail it to the district and NYSED." />
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300;9..144,400;9..144,500;9..144,600&family=Newsreader:ital,wght@0,300;0,400;0,500;1,400&display=swap');
+
+    /* Palette lifted from the Plainly app so this standalone page reads as part
+       of the site. Kept to the subset this page actually uses. */
+    :root {
+      --bg: #F5E8D4;
+      --surface: #FBF3E5;
+      --surface-2: #EFDFC5;
+      --ink: #1A2540;
+      --ink-muted: #5A6580;
+      --ink-soft: #8A8474;
+      --accent: #1F6F8B;
+      --accent-deep: #134E63;
+      --action: #D7522A;
+      --border: #DBC9A8;
+      --shadow: 0 1px 2px rgba(26,37,64,0.05), 0 4px 12px rgba(26,37,64,0.05);
+    }
+
+    * { box-sizing: border-box; }
+    body, html {
+      margin: 0;
+      padding: 0;
+      background: var(--bg);
+      font-family: 'Newsreader', Georgia, serif;
+      color: var(--ink);
+      line-height: 1.6;
+    }
+    a { color: var(--accent); }
+    a:hover { color: var(--accent-deep); }
+
+    .wrap { max-width: 660px; margin: 0 auto; padding: 28px 24px 64px; }
+
+    header.site {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      margin-bottom: 36px;
+    }
+    .brand-link {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      text-decoration: none;
+      color: inherit;
+    }
+    .brand-mark {
+      width: 26px; height: 26px;
+      border-radius: 50%;
+      background: var(--accent);
+      position: relative;
+      flex-shrink: 0;
+    }
+    .brand-mark::after {
+      content: '';
+      position: absolute;
+      inset: 5px;
+      border: 1.5px solid var(--bg);
+      border-radius: 50%;
+    }
+    .brand-name {
+      font-family: 'Fraunces', serif;
+      font-weight: 500;
+      font-size: 21px;
+      letter-spacing: -0.015em;
+      color: var(--ink);
+    }
+    .back-link { font-size: 14px; text-decoration: none; white-space: nowrap; }
+
+    h1 {
+      font-family: 'Fraunces', serif;
+      font-weight: 500;
+      font-size: 32px;
+      letter-spacing: -0.02em;
+      margin: 0 0 8px;
+      color: var(--ink);
+    }
+    .lede { font-size: 17px; color: var(--ink-muted); margin: 0 0 32px; }
+
+    ol.steps {
+      list-style: none;
+      counter-reset: step;
+      margin: 0;
+      padding: 0;
+    }
+    ol.steps > li {
+      counter-increment: step;
+      position: relative;
+      padding: 0 0 22px 52px;
+      margin: 0;
+    }
+    ol.steps > li::before {
+      content: counter(step);
+      position: absolute;
+      left: 0; top: 0;
+      width: 34px; height: 34px;
+      border-radius: 50%;
+      background: var(--accent);
+      color: var(--surface);
+      font-family: 'Fraunces', serif;
+      font-weight: 500;
+      font-size: 17px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    ol.steps > li:not(:last-child)::after {
+      content: '';
+      position: absolute;
+      left: 16px; top: 40px; bottom: 6px;
+      width: 1.5px;
+      background: var(--border);
+    }
+    .step-title {
+      font-family: 'Fraunces', serif;
+      font-weight: 500;
+      font-size: 18px;
+      margin: 4px 0 4px;
+      color: var(--ink);
+    }
+    .step-body { margin: 0; color: var(--ink-muted); font-size: 16px; }
+    .step-body strong { color: var(--ink); font-weight: 500; }
+
+    .btn-form {
+      display: inline-block;
+      margin-top: 10px;
+      background: var(--action);
+      color: #fff;
+      text-decoration: none;
+      font-size: 15px;
+      padding: 9px 16px;
+      border-radius: 8px;
+      box-shadow: var(--shadow);
+    }
+    .btn-form:hover { background: #B23C18; color: #fff; }
+
+    .address-card {
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 14px 16px;
+      margin: 10px 0 4px;
+      font-size: 16px;
+      color: var(--ink);
+    }
+    .address-card .who { font-weight: 500; }
+
+    footer.note {
+      margin-top: 40px;
+      padding-top: 20px;
+      border-top: 1px solid var(--border);
+      font-size: 14px;
+      color: var(--ink-soft);
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header class="site">
+      <a class="brand-link" href="/">
+        <div class="brand-mark"></div>
+        <span class="brand-name">Plainly</span>
+      </a>
+      <a class="back-link" href="/">← Back to Plainly</a>
+    </header>
+
+    <main>
+      <h1>How to file your complaint</h1>
+      <p class="lede">
+        You've got your due process complaint drafted. Here's how to file it in
+        New York — it's a few plain steps.
+      </p>
+
+      <ol class="steps">
+        <li>
+          <div class="step-title">Download the official NYSED cover form</div>
+          <p class="step-body">
+            It's already set up so you only fill in basic information — the
+            <strong>"Nature of Complaint"</strong> and
+            <strong>"Proposed Resolution"</strong> boxes already say
+            "See attached."
+          </p>
+          <a class="btn-form" href="/forms/nysed-due-process-complaint-notice.pdf" target="_blank" rel="noopener">
+            Download the NYSED complaint form (PDF)
+          </a>
+        </li>
+
+        <li>
+          <div class="step-title">Fill in your basic information</div>
+          <p class="step-body">
+            Your name, your child's name, your address, and your school district.
+            That's all the form itself needs from you.
+          </p>
+        </li>
+
+        <li>
+          <div class="step-title">Attach the complaint letter Plainly drafted</div>
+          <p class="step-body">
+            That letter is the <strong>"See attached"</strong> substance — it's
+            the actual nature of your complaint and what you're asking for. Attach
+            it to the cover form as one package.
+          </p>
+        </li>
+
+        <li>
+          <div class="step-title">Mail it to two places</div>
+          <p class="step-body">
+            Send the <strong>original to your school district</strong>, and send
+            <strong>one copy to NYSED</strong>:
+          </p>
+          <div class="address-card">
+            <div class="who">New York State Education Department</div>
+            Office of Special Education<br />
+            Room 309 EB, 89 Washington Avenue<br />
+            Albany, NY 12234<br />
+            Attn: Due Process Unit
+          </div>
+          <p class="step-body">
+            Send it <strong>certified mail</strong> so you have proof of delivery,
+            and <strong>keep a copy for yourself</strong>.
+          </p>
+        </li>
+      </ol>
+
+      <footer class="note">
+        These steps are for filing a due process <em>complaint</em>. Your school
+        district's own mailing address varies — Plainly can help you find it in
+        the chat. Plainly is a conversational guide, not a lawyer, and nothing
+        here is legal advice.
+      </footer>
+    </main>
+  </div>
+</body>
+</html>
