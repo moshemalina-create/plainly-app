@@ -402,6 +402,71 @@ strong { font-weight: 500; color: var(--ink); }
 }
 .card h3 { margin-top: 0; }
 
+/* ------- Account dashboard (scoped to /account only) -------
+   Widening + grid live entirely under .account-dash and namespaced children.
+   The site-wide .page (720px) is NOT touched, so the chat (.page-wide) and every
+   other page are unaffected. */
+.account-dash {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 56px 24px 80px;
+}
+.dash-header { margin-bottom: 22px; }
+.dash-actions { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 14px; }
+
+/* Docket-style case card — the signature element */
+.case-card { padding: 26px 30px; }
+.case-title {
+  font-family: 'Fraunces', serif;
+  font-weight: 500;
+  font-size: 26px;
+  letter-spacing: -0.01em;
+  color: var(--ink);
+  margin: 0 0 12px;
+}
+.case-facts {
+  background: var(--surface-2);
+  border-radius: 8px;
+  padding: 10px 14px;
+  margin: 0 0 16px;
+  font-size: 14px;
+  color: var(--ink-muted);
+}
+.case-issue { font-size: 16px; line-height: 1.6; color: var(--ink); margin: 0; }
+.case-dates {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 28px;
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border-soft);
+  font-size: 14px;
+  color: var(--ink);
+}
+.case-date-label {
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--accent);
+  margin-right: 6px;
+}
+
+/* Inputs (main) / outputs (rail) split */
+.dash-grid {
+  display: grid;
+  grid-template-columns: 1.6fr 1fr;
+  gap: 20px;
+  align-items: start;
+  margin-top: 20px;
+}
+.dash-main, .dash-rail { min-width: 0; }
+.dash-main .card, .dash-rail .card { margin-bottom: 20px; }
+
+@media (max-width: 720px) {
+  .dash-grid { grid-template-columns: 1fr; }
+}
+
 .card-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
@@ -7191,7 +7256,7 @@ function AccountPage() {
       // access posture.
       try {
         const { data } = await sb.from("cases")
-          .select("recap, parent_notes, docs_reviewed, last_session_at, updated_at, created_at")
+          .select("recap, parent_notes, docs_reviewed, last_session_at, updated_at, created_at, intake, formal_fields")
           .eq("user_id", user.id)
           .maybeSingle();
         if (active) {
@@ -7298,78 +7363,127 @@ function AccountPage() {
     } catch (e) { setNotesStatus("idle"); }
   };
 
-  return (
-    <div className="page fade-in">
-      <div className="eyebrow">Your case</div>
-      <h1 className="display" style={{ fontSize: 34 }}>Welcome back.</h1>
-      {recap
-        ? <p className="lede">{recap}</p>
-        : <p className="lede">We haven't built up a summary of your situation yet — pick up the conversation whenever you're ready.</p>}
-      {lastVisitStr && <p className="muted" style={{ marginTop: -6 }}>Last visit: {lastVisitStr}</p>}
+  // Dashboard fields, derived from the stored case (intake + formal_fields).
+  // Everything is optional — missing fields are omitted, never shown blank.
+  const intake = (caseRow && caseRow.intake) || {};
+  const formal = (caseRow && caseRow.formal_fields) || {};
+  const childFirst = (intake.student_first_name || "").trim();
+  const childFull = (formal.child_full_name || "").trim();
+  const childTitle = childFull || childFirst;          // case-card title (full legal preferred)
+  const childPossessive = childFirst || childFull;     // header "[Child]'s Case"
+  const headerTitle = childPossessive
+    ? `Your Account — ${childPossessive}'s Case`
+    : "Your Account — Your Case";
+  const gradeStr = intake.student_grade != null ? String(intake.student_grade).trim() : "";
+  const ageStr = intake.student_age != null ? String(intake.student_age).trim() : "";
+  const school = (intake.student_school || "").trim();
+  const classification = (intake.student_classification || "").trim();
+  const facts = [
+    gradeStr ? `Grade ${gradeStr}` : null,
+    ageStr ? `Age ${ageStr}` : null,
+    school || null,
+    classification || null,
+  ].filter(Boolean);
+  const issue = recap || (intake.concerns_summary || "").trim();
+  const kd = intake.key_dates || {};
+  const cseDate = (kd.most_recent_cse_date || "").trim();
+  const noticeDate = (kd.ten_day_notice_date_sent || "").trim();
 
-      <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 8 }}>
-        <button className="btn btn-primary" onClick={onContinue}>Continue the conversation</button>
-        <button className="btn btn-ghost" onClick={authSignOut}>Log out</button>
+  return (
+    <div className="account-dash fade-in">
+      <div className="dash-header">
+        <div className="eyebrow">Your account</div>
+        <h1 className="display" style={{ fontSize: 40, marginBottom: 8 }}>{headerTitle}</h1>
+        {lastVisitStr && <p className="muted" style={{ margin: 0 }}>Last visit: {lastVisitStr}</p>}
+        <div className="dash-actions">
+          <button className="btn btn-primary" onClick={onContinue}>Continue the conversation</button>
+          <button className="btn btn-ghost" onClick={authSignOut}>Log out</button>
+        </div>
       </div>
 
-      {docsReviewed.length > 0 && (
-        <div className="card" style={{ marginTop: 22 }}>
-          <h3 className="sub">Docs reviewed</h3>
-          <p className="help">
-            Documents you've shared with Plainly. To protect your and your child's
-            privacy, only a short summary is kept here — never the original file. If
-            we need the specifics again, I'll ask you to re-upload it.
-          </p>
-          <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
-            {docsReviewed.map((d, i) => (
-              <li key={i} style={{ padding: "10px 0", borderTop: i ? "1px solid var(--border-soft)" : "none" }}>
-                <div style={{ fontWeight: 500 }}>
-                  {d.doc_type || "Document"}{d.date_conducted ? ` — ${d.date_conducted}` : ""}
-                </div>
-                {d.headline_extraction && (
-                  <div style={{ fontSize: 13, color: "var(--ink-muted)", marginTop: 2 }}>{d.headline_extraction}</div>
-                )}
-                <div style={{ fontSize: 12, color: "var(--ink-soft)", marginTop: 2 }}>
-                  {d.filename}{d.source ? ` · ${d.source}` : ""}{d.date_reviewed ? ` · reviewed ${d.date_reviewed}` : ""}
-                </div>
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
+      <div className="card case-card">
+        <div className="eyebrow" style={{ marginBottom: 12 }}>Case summary</div>
+        {childTitle && <h2 className="case-title">{childTitle}</h2>}
+        {facts.length > 0 && <div className="case-facts">{facts.join(" · ")}</div>}
+        {issue
+          ? <p className="case-issue">{issue}</p>
+          : <p className="case-issue muted">We haven't built up a summary of your situation yet — pick up the conversation whenever you're ready.</p>}
+        {(cseDate || noticeDate) && (
+          <div className="case-dates">
+            {cseDate && <span><span className="case-date-label">CSE meeting</span>{cseDate}</span>}
+            {noticeDate && <span><span className="case-date-label">10-day notice sent</span>{noticeDate}</span>}
+          </div>
+        )}
+      </div>
 
-      {genFiles.length > 0 && (
-        <div className="card" style={{ marginTop: 22 }}>
-          <h3 className="sub">Documents</h3>
-          <p className="help">
-            Documents Plainly put together with you — your complaint, letters.
-            Download them whenever you need them.
-          </p>
-          <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
-            {genFiles.map((f, i) => (
-              <li
-                key={f.name}
-                style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, padding: "10px 0", borderTop: i ? "1px solid var(--border-soft)" : "none" }}
-              >
-                <span>{f.name.replace(/\.pdf$/i, "").replace(/[-_]/g, " ").replace(/^./, (c) => c.toUpperCase())}</span>
-                <button className="btn btn-ghost" onClick={() => downloadGenFile(f.name)} disabled={downloadingFile === f.name}>
-                  {downloadingFile === f.name ? "Downloading…" : "Download"}
-                </button>
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
+      <div className="dash-grid">
+        <div className="dash-main">
+          <div className="card">
+            <h3 className="sub">My notes</h3>
+            <p className="help">Anything you want to jot down for yourself — questions, dates, what happened at a meeting. I'll have these in our next conversation.</p>
+            <div className="field">
+              <textarea rows={8} value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="e.g., CSE meeting is on the 14th; ask about the speech eval." />
+            </div>
+            <button className="btn btn-ghost" onClick={saveNotes} disabled={notesStatus === "saving"}>
+              {notesStatus === "saving" ? "Saving…" : notesStatus === "saved" ? "Saved ✓" : "Save notes"}
+            </button>
+          </div>
 
-      <div className="card" style={{ marginTop: 22 }}>
-        <h3 className="sub">My notes</h3>
-        <p className="help">Anything you want to jot down for yourself — questions, dates, what happened at a meeting. I'll have these in our next conversation.</p>
-        <div className="field">
-          <textarea rows={5} value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="e.g., CSE meeting is on the 14th; ask about the speech eval." />
+          {docsReviewed.length > 0 && (
+            <div className="card">
+              <h3 className="sub">Docs Reviewed by Plainly</h3>
+              <p className="help">
+                Documents you've shared with Plainly. To protect your and your child's
+                privacy, only a short summary is kept here — never the original file. If
+                we need the specifics again, I'll ask you to re-upload it.
+              </p>
+              <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
+                {docsReviewed.map((d, i) => (
+                  <li key={i} style={{ padding: "10px 0", borderTop: i ? "1px solid var(--border-soft)" : "none" }}>
+                    <div style={{ fontWeight: 500 }}>
+                      {d.doc_type || "Document"}{d.date_conducted ? ` — ${d.date_conducted}` : ""}
+                    </div>
+                    {d.headline_extraction && (
+                      <div style={{ fontSize: 13, color: "var(--ink-muted)", marginTop: 2 }}>{d.headline_extraction}</div>
+                    )}
+                    <div style={{ fontSize: 12, color: "var(--ink-soft)", marginTop: 2 }}>
+                      {d.filename}{d.source ? ` · ${d.source}` : ""}{d.date_reviewed ? ` · reviewed ${d.date_reviewed}` : ""}
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
         </div>
-        <button className="btn btn-ghost" onClick={saveNotes} disabled={notesStatus === "saving"}>
-          {notesStatus === "saving" ? "Saving…" : notesStatus === "saved" ? "Saved ✓" : "Save notes"}
-        </button>
+
+        <div className="dash-rail">
+          <div className="card">
+            <h3 className="sub">Documents Prepared by Plainly</h3>
+            {genFiles.length > 0 ? (
+              <>
+                <p className="help">
+                  Documents Plainly put together with you — your complaint, letters.
+                  Download them whenever you need them.
+                </p>
+                <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
+                  {genFiles.map((f, i) => (
+                    <li
+                      key={f.name}
+                      style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, padding: "10px 0", borderTop: i ? "1px solid var(--border-soft)" : "none" }}
+                    >
+                      <span>{f.name.replace(/\.pdf$/i, "").replace(/[-_]/g, " ").replace(/^./, (c) => c.toUpperCase())}</span>
+                      <button className="btn btn-ghost" onClick={() => downloadGenFile(f.name)} disabled={downloadingFile === f.name}>
+                        {downloadingFile === f.name ? "Downloading…" : "Download"}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </>
+            ) : (
+              <p className="help">Nothing here yet. When Plainly drafts a complaint or letter with you, it'll show up here to download.</p>
+            )}
+          </div>
+        </div>
       </div>
 
       <p className="muted" style={{ marginTop: 18, fontSize: 13 }}>
