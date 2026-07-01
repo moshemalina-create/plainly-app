@@ -1332,7 +1332,7 @@ function Footer() {
         </div>
         <div className="footer-col">
           <h5>Legal</h5>
-          <a href="#/about" onClick={(e) => { e.preventDefault(); go("/about"); }}>Disclaimer</a>
+          <a href="#/disclaimer" onClick={(e) => { e.preventDefault(); go("/disclaimer"); }}>Disclaimer</a>
           <a href="#/privacy" onClick={(e) => { e.preventDefault(); go("/privacy"); }}>Privacy</a>
           <a href="#/contact" onClick={(e) => { e.preventDefault(); go("/contact"); }}>Contact</a>
         </div>
@@ -2235,6 +2235,11 @@ function AboutPage() {
         Feedback, questions, ideas, or notes about something the tool got
         wrong? <a href="#/contact" onClick={(e) => { e.preventDefault(); go("/contact"); }}>Contact us</a>.
       </p>
+      <p className="muted" style={{ marginTop: 24, fontSize: 14 }}>
+        <a href="#/disclaimer" onClick={(e) => { e.preventDefault(); go("/disclaimer"); }}>Legal Disclaimer</a>
+        {" · "}
+        <a href="#/privacy" onClick={(e) => { e.preventDefault(); go("/privacy"); }}>Privacy Policy</a>
+      </p>
     </div>
   );
 }
@@ -2310,6 +2315,130 @@ function PrivacyPage() {
           The chat messages are sent to Anthropic's Claude API to generate
           responses. Anthropic's data handling policies apply during transit
           and processing. They don't use API messages to train models.
+        </p>
+      </div>
+    </div>
+  );
+}
+
+// ============================================================================
+// PAGE: DISCLAIMER (legal sibling of the privacy page)
+// ============================================================================
+
+function DisclaimerPage() {
+  return (
+    <div className="page fade-in">
+      <div className="eyebrow">Legal</div>
+      <h1 className="display" style={{ fontSize: 42 }}>Disclaimer &amp; Terms of Use.</h1>
+      <p className="lede">
+        Last updated: [DATE] · This is placeholder language pending final review.
+      </p>
+      <div className="card">
+        <h3 className="sub">Not legal advice</h3>
+        <p className="muted">
+          Be Heard is a free informational and document-preparation tool for New
+          York parents navigating special education disputes. It is not a law
+          firm, it does not practice law, and nothing it provides constitutes
+          legal advice. The information, documents, and guidance offered through
+          this site are general in nature and may not apply to your specific
+          circumstances.
+        </p>
+      </div>
+      <div className="card">
+        <h3 className="sub">No attorney-client relationship</h3>
+        <p className="muted">
+          Using this site does not create an attorney-client relationship
+          between you and Be Heard, its creator, or anyone associated with it.
+          Communications you have with the tool are not protected by
+          attorney-client privilege.
+        </p>
+      </div>
+      <div className="card">
+        <h3 className="sub">Documents are starting points</h3>
+        <p className="muted">
+          Any letters, requests, or complaint drafts this tool produces are
+          templates personalized to the information you provide. They are
+          starting points, not finished legal filings. You are responsible for
+          reviewing every document for accuracy and completeness, editing it as
+          needed, and deciding whether and when to send or file it. You should
+          verify all facts, dates, deadlines, and legal requirements
+          independently before acting.
+        </p>
+      </div>
+      <div className="card">
+        <h3 className="sub">No guarantee of outcome</h3>
+        <p className="muted">
+          Be Heard does not guarantee any particular result. Special education
+          disputes are fact-specific and their outcomes depend on many factors
+          outside this tool's control. Nothing here should be understood as a
+          prediction or assurance about how your matter will be resolved.
+        </p>
+      </div>
+      <div className="card">
+        <h3 className="sub">Deadlines and time limits</h3>
+        <p className="muted">
+          Special education and due process matters are subject to strict legal
+          deadlines and statutes of limitations. While the tool may flag
+          time-sensitive issues, it cannot guarantee that every applicable
+          deadline will be identified. You are responsible for confirming and
+          meeting all deadlines that apply to your situation.
+        </p>
+      </div>
+      <div className="card">
+        <h3 className="sub">When to consult an attorney</h3>
+        <p className="muted">
+          This tool is designed for parents pursuing matters on their own, and
+          for many everyday disputes self-representation is workable. However, it
+          is not a substitute for a licensed attorney. For higher-stakes matters
+          — including significant tuition reimbursement, disciplinary or
+          manifestation-determination proceedings, or any matter that escalates
+          to a hearing where the school district is represented by counsel — you
+          should strongly consider consulting a qualified special education
+          attorney or trained advocate.
+        </p>
+      </div>
+      <div className="card">
+        <h3 className="sub">Jurisdiction</h3>
+        <p className="muted">
+          Be Heard addresses special education procedures under federal law
+          (IDEA) and New York State law and regulations. It is intended for use
+          by parents of students in New York. The information provided may not be
+          accurate or applicable in other states.
+        </p>
+      </div>
+      <div className="card">
+        <h3 className="sub">Not affiliated with any government agency or school district</h3>
+        <p className="muted">
+          Be Heard is an independent tool. It is not affiliated with, endorsed
+          by, or connected to the New York State Education Department, any school
+          district, or any government agency.
+        </p>
+      </div>
+      <div className="card">
+        <h3 className="sub">AI-generated content</h3>
+        <p className="muted">
+          This tool uses artificial intelligence to generate responses and
+          documents. AI can make mistakes, misstate facts, or produce incomplete
+          information. Always review AI-generated content critically and verify
+          anything you intend to rely on.
+        </p>
+      </div>
+      <div className="card">
+        <h3 className="sub">No warranty</h3>
+        <p className="muted">
+          This site and its content are provided "as is," without warranties of
+          any kind, express or implied, including but not limited to accuracy,
+          completeness, fitness for a particular purpose, or non-infringement. To
+          the fullest extent permitted by law, Be Heard and those associated with
+          it disclaim all liability for any loss or harm arising from your use
+          of, or reliance on, this site or the documents it produces.
+        </p>
+      </div>
+      <div className="card">
+        <h3 className="sub">Your use of this site</h3>
+        <p className="muted">
+          By using Be Heard, you acknowledge that you have read and understood
+          this disclaimer and agree to use the tool accordingly.
         </p>
       </div>
     </div>
@@ -7608,6 +7737,7 @@ function App() {
     case "/about": page = <AboutPage />; break;
     case "/contact": page = <ContactPage />; break;
     case "/privacy": page = <PrivacyPage />; break;
+    case "/disclaimer": page = <DisclaimerPage />; break;
     case "/account": page = <AccountPage />; break;
     default: page = <NotFoundPage />;
   }
