@@ -3,14 +3,23 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<meta name="description" content="Plainly — a free tool that helps New York parents challenge IEP and special education decisions, in plain English, without a lawyer." />
-<title>Plainly — NY special education, in plain English</title>
+<meta name="description" content="Be Heard is a free tool that helps New York parents challenge IEP and special education decisions and get their child the services they need — without a lawyer, without legalese." />
+<title>Be Heard — get your child the services they need</title>
+<link rel="icon" type="image/svg+xml" href="/brand/beheard-favicon.svg" />
+<meta property="og:type" content="website" />
+<meta property="og:title" content="Be Heard — get your child the services they need" />
+<meta property="og:description" content="A free tool that helps New York parents challenge IEP and special education decisions and get their child the services they need — without a lawyer, without legalese." />
+<meta property="og:image" content="/brand/beheard-lockup-light.svg" />
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:title" content="Be Heard — get your child the services they need" />
+<meta name="twitter:description" content="A free tool that helps New York parents challenge IEP and special education decisions and get their child the services they need — without a lawyer, without legalese." />
+<meta name="twitter:image" content="/brand/beheard-lockup-light.svg" />
 <style>
   body, html { margin: 0; padding: 0; }
   /* While Babel transforms the JSX, hide the page until React renders */
   #root:empty + .boot-msg { display: block; }
   .boot-msg { display: none; padding: 60px 24px; text-align: center; font-family: Georgia, serif; color: #5A6580; }
-  .boot-msg .pulse { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #1F6F8B; margin: 0 4px; animation: pulse 1.4s ease-in-out infinite; }
+  .boot-msg .pulse { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #C8501F; margin: 0 4px; animation: pulse 1.4s ease-in-out infinite; }
   .boot-msg .pulse:nth-child(2) { animation-delay: 0.2s; }
   .boot-msg .pulse:nth-child(3) { animation-delay: 0.4s; }
   @keyframes pulse { 0%, 80%, 100% { opacity: 0.3; transform: scale(0.8); } 40% { opacity: 1; transform: scale(1); } }
@@ -134,28 +143,41 @@ async function authSignOut() {
 // ============================================================================
 
 const STYLES = `
-@import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300;9..144,400;9..144,500;9..144,600&family=Newsreader:ital,wght@0,300;0,400;0,500;1,400&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300;9..144,400;9..144,500;9..144,600;9..144,800&family=Newsreader:ital,wght@0,300;0,400;0,500;1,400&display=swap');
+
+/* Self-hosted Be Heard wordmark (heaviest Fraunces display cut, logo glyphs only) */
+@font-face {
+  font-family: "BeHeard Wordmark";
+  src: url("/brand/BeHeard-Wordmark.woff2") format("woff2");
+  font-weight: 800;
+  font-display: swap;
+}
 
 :root {
-  --bg: #F5E8D4;
-  --surface: #FBF3E5;
-  --surface-2: #EFDFC5;
-  --ink: #1A2540;
-  --ink-muted: #5A6580;
-  --ink-soft: #8A8474;
-  --accent: #1F6F8B;
-  --accent-deep: #134E63;
-  --accent-soft: #DCEAF0;
-  --action: #D7522A;
-  --action-deep: #B23C18;
-  --action-soft: #FBE0D5;
+  /* Be Heard brand tokens — single source of truth (consolidated from the two
+     former :root blocks). Navy backbone + terracotta accent; no teal/green.
+     --accent* is intentionally collapsed onto the terracotta family so every
+     legacy var(--accent) consumer renders terracotta (this also auto-unifies the
+     two italic accents). */
+  --bg: #F2EADB;            /* cream page background */
+  --surface: #FBF6EC;       /* cream card / raised surface */
+  --surface-2: #EAE0CE;     /* cream sunken / inset */
+  --ink: #1B3A5B;           /* navy — headlines, body, structure */
+  --ink-muted: #5A5248;     /* secondary text / tagline */
+  --ink-soft: #8A8275;      /* meta / hints */
+  --accent: #C8501F;        /* collapsed onto terracotta (was teal/green) */
+  --accent-deep: #A8401A;
+  --accent-soft: #FBE0D5;   /* soft terracotta tint (was teal tint) */
+  --action: #C8501F;        /* terracotta — the only action color */
+  --action-deep: #A8401A;   /* action hover / pressed */
+  --action-soft: #FBE0D5;   /* soft terracotta tint */
   --warn: #B85C38;
   --warn-soft: #F2DDD0;
   --warn-deep: #8A4226;
-  --border: #DBC9A8;
-  --border-soft: #E8D8B8;
-  --shadow: 0 1px 2px rgba(26,37,64,0.05), 0 4px 12px rgba(26,37,64,0.05);
-  --shadow-lg: 0 4px 28px rgba(26,37,64,0.10);
+  --border: rgba(27, 58, 91, 0.15);       /* navy hairline */
+  --border-soft: rgba(27, 58, 91, 0.09);  /* faint navy divider */
+  --shadow: 0 1px 2px rgba(27,58,91,0.05), 0 4px 12px rgba(27,58,91,0.05);
+  --shadow-lg: 0 4px 28px rgba(27,58,91,0.10);
 }
 
 * { box-sizing: border-box; }
@@ -235,6 +257,23 @@ body, html, #root {
   margin-left: 4px;
   font-weight: 500;
 }
+/* Be Heard live-text wordmark (replaces the ring/circle logo). "Heard" is
+   terracotta with the signature underline. */
+.bh-wordmark {
+  font-family: "BeHeard Wordmark", 'Fraunces', Georgia, serif;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  line-height: 1;
+  color: var(--ink);          /* navy "Be" */
+  display: inline-block;
+}
+.bh-wordmark .bh-heard {
+  color: var(--action);       /* terracotta "Heard" */
+  border-bottom: 0.07em solid #E8602C;  /* terracotta-lift underline (brand signature) */
+  padding-bottom: 0.04em;
+}
+.bh-wordmark--header { font-size: 24px; }
+.bh-wordmark--footer { font-size: 22px; }
 
 .site-nav {
   display: flex;
@@ -327,7 +366,7 @@ h3.sub {
   font-size: 12px;
   text-transform: uppercase;
   letter-spacing: 0.16em;
-  color: var(--accent);
+  color: var(--ink);
   font-weight: 600;
   margin-bottom: 16px;
 }
@@ -1210,10 +1249,9 @@ function Header({ route }) {
   return (
     <header className="site-header">
       <div className="site-header-inner">
-        <a href="#/" className="brand-link" onClick={(e) => { e.preventDefault(); go("/"); }}>
-          <div className="brand-mark" />
+        <a href="#/" className="brand-link" onClick={(e) => { e.preventDefault(); go("/"); }} aria-label="Be Heard — home">
           <div>
-            <span className="brand-name">Plainly</span>
+            <span className="bh-wordmark bh-wordmark--header">Be <span className="bh-heard">Heard</span></span>
             <span className="brand-mark-tag">Free · NY · Special education</span>
           </div>
         </a>
@@ -1255,9 +1293,8 @@ function Footer() {
     <footer className="site-footer">
       <div className="site-footer-inner">
         <div className="footer-brand">
-          <a href="#/" className="brand-link" onClick={(e) => { e.preventDefault(); go("/"); }}>
-            <div className="brand-mark" />
-            <span className="brand-name">Plainly</span>
+          <a href="#/" className="brand-link" onClick={(e) => { e.preventDefault(); go("/"); }} aria-label="Be Heard — home">
+            <span className="bh-wordmark bh-wordmark--footer">Be <span className="bh-heard">Heard</span></span>
           </a>
           <p>
             A free, guided tool for New York parents who want to challenge an
@@ -3956,24 +3993,8 @@ async function saveGeneratedDoc(userId, filename, blob) {
 // ============================================================================
 
 const CHAT_STYLES = `
-@import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500&family=Newsreader:wght@400;500&display=swap');
-
-:root {
-  --bg: #F4EFE6;
-  --surface: #FBF8F2;
-  --surface-2: #EFE7D6;
-  --ink: #1F2A37;
-  --ink-muted: #5B6470;
-  --ink-soft: #8A8474;
-  --accent: #2C5E4F;
-  --accent-deep: #1F4438;
-  --accent-soft: #DDE7E2;
-  --warn: #B85C38;
-  --warn-soft: #F2DDD0;
-  --warn-deep: #8A4226;
-  --border: #D9D0BD;
-  --border-soft: #E8DFCB;
-}
+/* Fonts + design tokens are defined once in the head <style> :root (Be Heard).
+   This stylesheet inherits them — no duplicate @import or :root here. */
 
 * { box-sizing: border-box; }
 
