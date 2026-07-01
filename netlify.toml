@@ -15,3 +15,14 @@
 # timing out. (Free tier max is 26s; paid plans allow more.)
 [functions."claude"]
   timeout = 26
+
+# Static download assets. Netlify already serves .pdf as application/pdf by
+# content-type detection; this makes it explicit and stable for the hosted
+# NYSED forms so they open/download reliably rather than being sniffed as
+# something else. Inline so the browser can preview before saving.
+[[headers]]
+  for = "/forms/*.pdf"
+  [headers.values]
+    Content-Type = "application/pdf"
+    Content-Disposition = "inline"
+    Cache-Control = "public, max-age=3600"

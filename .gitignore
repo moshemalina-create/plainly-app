@@ -6,3 +6,8 @@
 # local testing only; see test-fixtures/README.md.
 *.pdf
 *.PDF
+
+# Exception: blank official NYSED forms hosted as static download assets.
+# These contain no PII (pre-filled only with checkbox defaults + "See
+# attached"), so they are intentionally tracked and served by Netlify.
+!forms/*.pdf
