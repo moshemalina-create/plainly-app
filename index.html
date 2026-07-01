@@ -911,18 +911,6 @@ strong { font-weight: 500; color: var(--ink); }
 .msg-bubble p:last-child { margin-bottom: 0; }
 .msg-bubble strong { font-weight: 600; }
 
-.wait-check {
-  background: var(--warn-soft);
-  border: 1px solid var(--warn);
-  border-left: 3px solid var(--warn-deep);
-  border-radius: 8px;
-  padding: 14px 18px;
-  margin: 12px 0;
-  font-size: 14.5px;
-  color: var(--ink);
-}
-.wait-check strong { color: var(--warn-deep); }
-
 .composer {
   display: flex;
   gap: 8px;
@@ -2395,6 +2383,9 @@ If they say yes generally without specifying ("sure," "all of those"), use your 
 
 If the parent just wants to talk or ask questions and hasn't accepted anything, leave parent_requested_assessment unset and outputs_to_generate empty. Never generate something they didn't agree to.
 
+AFTER YOU'VE GENERATED A DOCUMENT — mention saving, once
+The first time you hand off a generated letter or complaint in a session, and only if the ACCOUNT STATE below says the parent is NOT signed in, let them know they can keep a record. Lead with the account: if they'd like to save their case and come back to it later, they can set up a free account with the "Log in" button at the top — Plainly will keep track of their case and a copy of what you've drafted. State that plainly and confidently; it genuinely persists their case and drafts. Then, as a softer fallback for a parent who'd rather not make an account, you can offer to put together a short summary of the conversation they can save and re-upload for context next time — describe it modestly (it gives you the background again; it doesn't restore the session), don't oversell it. Keep the whole thing to a sentence or two, offered naturally after the hand-off, not a hard sell. Say it once — don't repeat it on every subsequent document. If the parent is already signed in, skip this entirely.
+
 WHEN A FULL COMPLAINT IS ON THE TABLE
 A complaint needs two things you should genuinely understand before it's drafted — gathered the same way as everything else, in conversation, never as a form:
 - The remedy — what, concretely, the parent wants the district to do. Push gently for specifics: "more speech" becomes "two 30-minute individual speech sessions a week"; "pay us back" becomes a dollar figure and a school year. If they don't know what to ask for, help them name it — but the remedy on file has to be theirs, not yours. Propose options, ask which fits, let them tell you what they're asking for. If they're truly stuck and you've offered options, leave intake.remedy_sought empty rather than pick for them — the confirmation gate will surface that gap before it becomes a draft.
@@ -2561,11 +2552,14 @@ VOICE
 - First person, parent's voice. Plain English. A literate parent who's done their homework, NOT a lawyer.
 - No case citations. No Latin. No "Petitioner," "the undersigned," "wherefore," "pursuant to."
 - May reference IDEA and Article 89 of NY Education Law in plain terms when relevant. Do NOT cite to specific case law.
+- Do NOT add boilerplate "reserve all rights" / reservation-of-rights language or any "including the right to request an impartial due process hearing" clause. Say what the parent wants plainly; skip the legal disclaimers.
 - Short paragraphs. Concrete dates and facts. Real names from the intake.
 - Tone: organized, factual, neither angry nor pleading.
 
 FORMAT
 - Plain text formatted as a business letter.
+- NO Markdown or formatting syntax of any kind: no asterisks for bold (**like this**), no # headings, no dashes or asterisks as bullets. This is a formal letter that will be printed and sent — any of those characters render as raw artifacts and look unprofessional. Write plain prose.
+- If you need to separate distinct points, use ordinary paragraph breaks, or simple numbered points (1., 2., 3.) as a business letter would — never Markdown emphasis to create a "header."
 - Top: today's date, parent name and address, then "To:" with the recipient.
 - Subject line under the recipient.
 - Body: short, direct paragraphs.
@@ -2593,7 +2587,6 @@ KEY ELEMENTS TO INCLUDE
 - Identify the private school by name if known; if not, [PARENT TO ADD: name of private school].
 - State the planned enrollment date if known; if not, [PARENT TO ADD: planned enrollment date].
 - State that you intend to seek tuition reimbursement.
-- Reserve all rights including due process under IDEA.
 - Closing: invite the district to convene a CSE meeting if they wish to revise their offer.
 
 Keep it under 350 words. The letter is meant to be sent today. Brevity matters.`;
@@ -2667,7 +2660,6 @@ KEY ELEMENTS
 - For each, briefly state why it doesn't meet the child's needs.
 - State that you have not signed the IEP and request that the district NOT implement it without resolving these concerns.
 - Request a CSE meeting to discuss revisions.
-- Reserve all rights including due process under IDEA.
 
 Keep it under 400 words.`;
 
@@ -2697,7 +2689,7 @@ const CLAIM_SUMMARY_PROMPT = `You are writing a clean one-page summary of a NY p
 VOICE
 - First person, parent's voice. Plain English.
 - Confident and organized, not anxious or pleading.
-- Short paragraphs with informal headers in plain language (e.g., "What's going on with [name]", "What I've tried", "What I want fixed").
+- Short paragraphs with informal headers in plain language (e.g., "What's going on with [name]", "What I've tried", "What I want fixed"). Write those headers as plain text lines only — NO Markdown or formatting syntax: no asterisks for bold (**like this**), no # symbols. Any such characters render as raw artifacts in the document.
 
 STRUCTURE
 1. One-sentence opener naming the child and the core issue.
@@ -3056,7 +3048,7 @@ PENDENCY (if asserted): one short paragraph identifying the program and basis. D
 REMEDY: close with "What I am asking for" listing specific relief in plain terms. Hours per week, dollar amounts, specific evaluations, specific placements.
 
 OUTPUT
-Plain text formatted as a letter. No markdown headings. Line breaks and short paragraphs. End with signature block: parent name, address, phone, email, date.
+Plain text formatted as a letter. NO Markdown or formatting syntax of any kind: no asterisks for bold (**like this**), no # headings, no dashes or asterisks as bullets — this document goes to a school district or hearing officer and any such characters render as unprofessional raw artifacts. Use ordinary line breaks and short paragraphs. When you need to separate distinct points or issues, use plain paragraph breaks or simple numbered points (1., 2., 3.) as a formal letter would — never Markdown emphasis as a header. End with signature block: parent name, address, phone, email, date.
 
 Don't include certificate of service unless asked. List evidence under "Documents I am prepared to provide" at the end if relevant. Don't predict outcomes. Don't include disclaimers. Don't invent dates, names, services, or quotes. Use [PARENT TO ADD: ...] placeholders for any required element you don't have.
 
@@ -3076,6 +3068,7 @@ REWRITE IF YOU SEE
 - Case citations of any kind. Remove.
 - Statutory citations beyond a single 34 CFR §300.508 reference. Remove additional; keep underlying point in plain language.
 - Formal headings in caps or Roman numerals. Replace with plain leads.
+- Markdown or formatting syntax: asterisks for bold (**text**), # headings, dashes/asterisks used as bullets. Strip the syntax and keep the words. Where it was being used to lead into a distinct point, keep that point as its own paragraph, or as a simple numbered item (1., 2., 3.) — plain formal prose, no emphasis characters.
 - Argumentative legal language: "denied a FAPE," "violated the IDEA," "failed to provide LRE." Convert to facts: "has not made progress," "the program does not meet his needs."
 - Sentences over 30 words. Break up.
 - Passive voice describing district actions. Make active.
@@ -3998,16 +3991,6 @@ h1 em { font-style: italic; color: var(--accent); }
   color: white;
   border-top-right-radius: 4px;
   align-self: flex-end;
-}
-
-.wait-flag {
-  font-size: 10px;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  color: var(--warn-deep);
-  font-weight: 600;
-  margin: 4px 0 0 6px;
-  align-self: flex-start;
 }
 
 .typing {
@@ -4952,7 +4935,7 @@ function DraftReview({ draft, edited, onEditChange, checks, onCheckChange, onReg
         <div className="stage-eyebrow">Drafting your complaint</div>
         <div className="checklist-loading">
           <span className="spinner" style={{ width: 16, height: 16, borderWidth: 2 }} />
-          <span>First pass: writing in your voice. Second pass: cleaning up any lawyerly language…</span>
+          <span>Drafting your complaint…</span>
         </div>
       </div>
     );
@@ -4979,9 +4962,9 @@ function DraftReview({ draft, edited, onEditChange, checks, onCheckChange, onReg
         you need to fill in before filing. Click "Edit directly" to make changes.
       </p>
       <p className="help">
-        This draft was run through a second pass to soften any legal jargon and
-        keep it in your voice. Read it over and tell me if anything still sounds
-        off — I can revise.
+        Please review this draft and make sure it is accurate and covers what you
+        want to achieve. If the tone or approach sounds off to you, let me know and
+        I can revise.
       </p>
 
       {editing ? (
@@ -6409,6 +6392,11 @@ function ChatTool() {
     if (parentNotes && parentNotes.trim()) {
       baseSystem += "\n\n--- PARENT'S OWN NOTES (they wrote these for themselves; use them as context) ---\n" + parentNotes.trim();
     }
+    // Auth state — so the post-generation save nudge can be tailored (never tell
+    // an already-signed-in parent to create an account; their case is saved).
+    baseSystem += authUser
+      ? "\n\n--- ACCOUNT STATE ---\nThe parent is signed in; their case and drafts are already being saved. Do NOT suggest creating an account."
+      : "\n\n--- ACCOUNT STATE ---\nThe parent is NOT signed in; nothing is being saved server-side.";
     const docsBlock = formatDocsForPrompt(docs);
     if (docsBlock) {
       baseSystem += "\n\n--- UPLOADED DOCUMENTS ---\n" + docsBlock;
@@ -6726,11 +6714,6 @@ function ChatTool() {
               <div className={`bubble ${m.role === "user" ? "parent" : "assistant"}`}>
                 {renderMessageText(m.content)}
               </div>
-              {m.waitCheck && (
-                <div className="wait-flag">
-                  Wait-check fired: {m.waitCheck.replace(/_/g, " ")}
-                </div>
-              )}
             </div>
           ))}
           {loading && (
@@ -6941,18 +6924,6 @@ function ChatTool() {
             the composer above. The assessment pipeline (processIEP, IEPSection,
             IEP_EXTRACT_PROMPT, IEP_FLAG_PROMPT) is PRESERVED for a future
             "Quick IEP assessment" entry point — see CLAUDE.md. Do not delete. */}
-
-        {waitChecks.filter((w) => VALID_WAIT_CHECKS.includes(w)).length > 0 && (
-          <div style={{ marginTop: 12, fontSize: 12, color: "var(--ink-soft)" }}>
-            Wait-checks fired this session:{" "}
-            <span style={{ color: "var(--warn-deep)", fontWeight: 500 }}>
-              {waitChecks
-                .filter((w) => VALID_WAIT_CHECKS.includes(w))
-                .join(", ")
-                .replace(/_/g, " ")}
-            </span>
-          </div>
-        )}
 
         <div className="disclaimer">
           This is a conversational guide, not a lawyer, and nothing here is legal
