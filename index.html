@@ -2558,6 +2558,8 @@ VOICE
 
 FORMAT
 - Plain text formatted as a business letter.
+- NO Markdown or formatting syntax of any kind: no asterisks for bold (**like this**), no # headings, no dashes or asterisks as bullets. This is a formal letter that will be printed and sent — any of those characters render as raw artifacts and look unprofessional. Write plain prose.
+- If you need to separate distinct points, use ordinary paragraph breaks, or simple numbered points (1., 2., 3.) as a business letter would — never Markdown emphasis to create a "header."
 - Top: today's date, parent name and address, then "To:" with the recipient.
 - Subject line under the recipient.
 - Body: short, direct paragraphs.
@@ -2687,7 +2689,7 @@ const CLAIM_SUMMARY_PROMPT = `You are writing a clean one-page summary of a NY p
 VOICE
 - First person, parent's voice. Plain English.
 - Confident and organized, not anxious or pleading.
-- Short paragraphs with informal headers in plain language (e.g., "What's going on with [name]", "What I've tried", "What I want fixed").
+- Short paragraphs with informal headers in plain language (e.g., "What's going on with [name]", "What I've tried", "What I want fixed"). Write those headers as plain text lines only — NO Markdown or formatting syntax: no asterisks for bold (**like this**), no # symbols. Any such characters render as raw artifacts in the document.
 
 STRUCTURE
 1. One-sentence opener naming the child and the core issue.
@@ -3046,7 +3048,7 @@ PENDENCY (if asserted): one short paragraph identifying the program and basis. D
 REMEDY: close with "What I am asking for" listing specific relief in plain terms. Hours per week, dollar amounts, specific evaluations, specific placements.
 
 OUTPUT
-Plain text formatted as a letter. No markdown headings. Line breaks and short paragraphs. End with signature block: parent name, address, phone, email, date.
+Plain text formatted as a letter. NO Markdown or formatting syntax of any kind: no asterisks for bold (**like this**), no # headings, no dashes or asterisks as bullets — this document goes to a school district or hearing officer and any such characters render as unprofessional raw artifacts. Use ordinary line breaks and short paragraphs. When you need to separate distinct points or issues, use plain paragraph breaks or simple numbered points (1., 2., 3.) as a formal letter would — never Markdown emphasis as a header. End with signature block: parent name, address, phone, email, date.
 
 Don't include certificate of service unless asked. List evidence under "Documents I am prepared to provide" at the end if relevant. Don't predict outcomes. Don't include disclaimers. Don't invent dates, names, services, or quotes. Use [PARENT TO ADD: ...] placeholders for any required element you don't have.
 
@@ -3066,6 +3068,7 @@ REWRITE IF YOU SEE
 - Case citations of any kind. Remove.
 - Statutory citations beyond a single 34 CFR §300.508 reference. Remove additional; keep underlying point in plain language.
 - Formal headings in caps or Roman numerals. Replace with plain leads.
+- Markdown or formatting syntax: asterisks for bold (**text**), # headings, dashes/asterisks used as bullets. Strip the syntax and keep the words. Where it was being used to lead into a distinct point, keep that point as its own paragraph, or as a simple numbered item (1., 2., 3.) — plain formal prose, no emphasis characters.
 - Argumentative legal language: "denied a FAPE," "violated the IDEA," "failed to provide LRE." Convert to facts: "has not made progress," "the program does not meet his needs."
 - Sentences over 30 words. Break up.
 - Passive voice describing district actions. Make active.
