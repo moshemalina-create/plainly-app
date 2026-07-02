@@ -585,18 +585,73 @@ strong { font-weight: 500; color: var(--ink); }
 /* ------- Hero ------- */
 
 .hero {
-  padding: 72px 24px 48px;
-  max-width: 760px;
-  margin: 0 auto;
+  padding: 72px 24px 56px;
 }
 @media (max-width: 720px) {
-  .hero { padding: 40px 18px 28px; }
+  .hero { padding: 40px 18px 32px; }
+}
+
+/* Split composition: text left, photo right, in a wider band that breaks the
+   centered column. Stacks on narrow widths (photo below the text). */
+.hero-split {
+  max-width: 1120px;
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: 1.05fr 0.95fr;
+  gap: 56px;
+  align-items: center;
+}
+.hero-copy { min-width: 0; }
+.hero-copy .display,
+.hero-copy .lede,
+.hero-copy .btn-row { text-align: left; }
+
+.hero-photo-wrap {
+  position: relative;
+  min-width: 0;
+}
+.hero-photo {
+  position: relative;
+  z-index: 1;
+  display: block;
+  width: 100%;
+  aspect-ratio: 4 / 5;
+  object-fit: cover;
+  object-position: center;
+  border: 1px solid var(--border);
+}
+/* The one bold move: a modest offset terracotta block behind the photo — the
+   brand's "underline the word that matters" motif as a compositional frame.
+   Offset (16px) is kept smaller than the .hero side padding (24px) so it can
+   never cause horizontal overflow. */
+.hero-photo-wrap::before {
+  content: "";
+  position: absolute;
+  z-index: 0;
+  right: -16px;
+  bottom: -16px;
+  width: 100%;
+  height: 100%;
+  background: var(--action);
+}
+
+@media (max-width: 860px) {
+  .hero-split { grid-template-columns: 1fr; gap: 36px; }
+  .hero-photo-wrap { max-width: 460px; }
+}
+/* Below ~500px: drop the photo entirely — headline + primary CTA stay above the
+   fold and small screens don't pay the image download cost. */
+@media (max-width: 500px) {
+  .hero-photo-wrap { display: none; }
 }
 
 .hero-stat {
+  max-width: 1120px;
+  margin: 44px auto 0;
+  padding-top: 28px;
+  border-top: 1px solid var(--border);
   display: flex;
   gap: 24px;
-  margin: 32px 0 0;
   flex-wrap: wrap;
   font-size: 14.5px;
   color: var(--ink-soft);
@@ -1358,24 +1413,37 @@ function HomePage() {
   return (
     <div className="fade-in">
       <div className="hero">
-        <div className="eyebrow">Free · For New York parents</div>
-        <h1 className="display">
-          Your child's school program isn't working.<br />
-          <em>Let's fix it.</em>
-        </h1>
-        <p className="lede">
-          This is a free tool that helps you push back when your child's IEP
-          or special education decision isn't right — without a lawyer, without
-          legalese, and without giving up. Tell us what's going on. We'll help
-          you figure out what to do next.
-        </p>
-        <div className="btn-row">
-          <button className="btn btn-primary btn-large" onClick={() => go("/start")}>
-            Tell us what's going on
-          </button>
-          <button className="btn btn-secondary btn-large" onClick={() => go("/how")}>
-            Or see how it works
-          </button>
+        <div className="hero-split">
+          <div className="hero-copy">
+            <div className="eyebrow">Free · For New York parents</div>
+            <h1 className="display">
+              Your child's school program isn't working.<br />
+              <em>Let's fix it.</em>
+            </h1>
+            <p className="lede">
+              This is a free tool that helps you push back when your child's IEP
+              or special education decision isn't right — without a lawyer, without
+              legalese, and without giving up. Tell us what's going on. We'll help
+              you figure out what to do next.
+            </p>
+            <div className="btn-row">
+              <button className="btn btn-primary btn-large" onClick={() => go("/start")}>
+                Tell us what's going on
+              </button>
+              <button className="btn btn-secondary btn-large" onClick={() => go("/how")}>
+                Or see how it works
+              </button>
+            </div>
+          </div>
+          <div className="hero-photo-wrap">
+            <img
+              className="hero-photo"
+              src="/Images/parents-hearing.webp"
+              alt="Two parents sitting across a conference table from an official at a special education due process hearing, with binders and documents in front of them"
+              loading="lazy"
+              decoding="async"
+            />
+          </div>
         </div>
         <div className="hero-stat">
           <div className="hero-stat-item">
