@@ -424,7 +424,7 @@ strong { font-weight: 500; color: var(--ink); }
   outline: none;
   box-shadow: 0 0 0 3px rgba(232, 96, 44, 0.35);
 }
-.btn-large { padding: 16px 32px; font-size: 17px; }
+.btn-large { padding: 18px 40px; font-size: 19px; }
 
 .btn-row {
   display: flex;
@@ -620,20 +620,6 @@ strong { font-weight: 500; color: var(--ink); }
   object-position: center;
   border: 1px solid var(--border);
 }
-/* The one bold move: a modest offset terracotta block behind the photo — the
-   brand's "underline the word that matters" motif as a compositional frame.
-   Offset (16px) is kept smaller than the .hero side padding (24px) so it can
-   never cause horizontal overflow. */
-.hero-photo-wrap::before {
-  content: "";
-  position: absolute;
-  z-index: 0;
-  right: -16px;
-  bottom: -16px;
-  width: 100%;
-  height: 100%;
-  background: var(--action);
-}
 
 @media (max-width: 860px) {
   .hero-split { grid-template-columns: 1fr; gap: 36px; }
@@ -647,30 +633,35 @@ strong { font-weight: 500; color: var(--ink); }
 
 .hero-stat {
   max-width: 1120px;
-  margin: 44px auto 0;
-  padding-top: 28px;
+  margin: 48px auto 0;
+  padding-top: 32px;
   border-top: 1px solid var(--border);
   display: flex;
-  gap: 24px;
+  justify-content: center;
+  gap: 44px;
   flex-wrap: wrap;
-  font-size: 14.5px;
+  font-size: 16.5px;
   color: var(--ink-soft);
 }
 .hero-stat-item {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 4px;
 }
 .hero-stat-item + .hero-stat-item {
   border-left: 1px solid var(--border);
-  padding-left: 24px;
+  padding-left: 44px;
 }
 .hero-stat-num {
   font-family: 'Fraunces', serif;
-  font-size: 26px;
+  font-size: 40px;
   font-weight: 500;
   color: var(--ink);
   line-height: 1;
+}
+@media (max-width: 500px) {
+  .hero-stat { gap: 20px; justify-content: flex-start; }
+  .hero-stat-item + .hero-stat-item { border-left: none; padding-left: 0; }
 }
 /* The single most important stat ($0 to file) stays terracotta; the others demote to navy. */
 .hero-stat-num.accent { color: var(--action); }
@@ -1603,7 +1594,7 @@ function HomePage() {
           </button>
         </div>
 
-        <h2 className="section">Honestly</h2>
+        <h2 className="section">You Can Do Something About It</h2>
         <p>
           The thing we hear most from parents — both before and after they
           finally file — is some version of: <em>I didn't know I could do
