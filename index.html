@@ -135,7 +135,7 @@ async function authSignOut() {
 //   #/         home
 //   #/start    the chat tool (stub link in this file — full version is the
 //              standalone artifact; in production this will be the live tool)
-//   #/how      "How it works" — NY due process arc in plain language
+//   #/how      "Filing a Complaint" — NY due process arc in plain language
 //   #/who      "Is this for me?" — claim types with examples
 //   #/faq      common questions
 //   #/resources  links to NYSED, NYC IHO, mediation, primary sources
@@ -1414,7 +1414,7 @@ function go(path) {
 // ============================================================================
 
 const NAV_ITEMS = [
-  { path: "/how", label: "How it works" },
+  { path: "/how", label: "Filing a Complaint" },
   { path: "/who", label: "Is this for me?" },
   { path: "/faq", label: "FAQ" },
   { path: "/resources", label: "Resources" },
@@ -1482,7 +1482,7 @@ function Footer() {
         <div className="footer-col">
           <h5>Get help</h5>
           <a href="#/start" onClick={(e) => { e.preventDefault(); go("/start"); }}>Start a conversation</a>
-          <a href="#/how" onClick={(e) => { e.preventDefault(); go("/how"); }}>How it works</a>
+          <a href="#/how" onClick={(e) => { e.preventDefault(); go("/how"); }}>Filing a Complaint</a>
           <a href="#/who" onClick={(e) => { e.preventDefault(); go("/who"); }}>Is this for me?</a>
         </div>
         <div className="footer-col">
@@ -1536,7 +1536,7 @@ function HomePage() {
                 Tell us what's going on
               </button>
               <button className="btn btn-secondary btn-large" onClick={() => go("/how")}>
-                Or see how it works
+                Or see how filing works
               </button>
             </div>
           </div>
@@ -1775,7 +1775,7 @@ function HomePage() {
 function HowPage() {
   return (
     <div className="page-mid fade-in">
-      <div className="eyebrow">How it works</div>
+      <div className="eyebrow">Filing a complaint</div>
       <h1 className="display" style={{ fontSize: 42 }}>
         What filing a <em>due process complaint</em> in New York actually looks like.
       </h1>
