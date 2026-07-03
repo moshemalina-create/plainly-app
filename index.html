@@ -346,6 +346,9 @@ body, html, #root {
    text stays left-aligned unless .text-center is also set). */
 .measure.center { margin-left: auto; margin-right: auto; }
 .measure.text-center { text-align: center; }
+/* Content-page reading widths inside the 960 tier. */
+.faq-list { max-width: 720px; }
+.about-body p { max-width: 65ch; }
 
 @media (max-width: 720px) {
   .page, .page-wide, .page-mid { padding: 32px 18px 60px; }
@@ -926,7 +929,7 @@ strong { font-weight: 500; color: var(--ink); }
 
 /* ------- Resource list ------- */
 
-.resource-list { margin: 16px 0 32px; }
+.resource-list { margin: 16px 0 32px; max-width: 720px; }
 .resource-item {
   display: flex;
   flex-direction: column;
@@ -956,6 +959,7 @@ strong { font-weight: 500; color: var(--ink); }
   color: var(--ink-soft);
   margin-top: 4px;
   font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  overflow-wrap: anywhere;
 }
 
 /* ------- Big CTA strip ------- */
@@ -2032,19 +2036,20 @@ const CLAIM_TYPES = [
 
 function WhoPage() {
   return (
-    <div className="page fade-in">
-      <div className="eyebrow">Is this for me?</div>
-      <h1 className="display" style={{ fontSize: 42 }}>
+    <div className="page-mid fade-in">
+      <div className="eyebrow" style={{ textAlign: "center" }}>Is this for me?</div>
+      <h1 className="display" style={{ fontSize: 42, textAlign: "center" }}>
         How We Can Help
       </h1>
-      <p className="lede">
+      <p className="lede measure center text-center">
         Most disagreements with the district fall into one of these categories.
         You don't need to know which one fits before you start — the chat figures
         that out with you.
       </p>
 
+      <div className="card-grid-2">
       {CLAIM_TYPES.map((c, i) => (
-        <div className="card" key={i} style={{ marginBottom: 16 }}>
+        <div className="card" key={i}>
           <h3 className="sub">{c.title}</h3>
           <p className="muted" style={{ marginBottom: 12 }}>{c.summary}</p>
           <ul style={{ marginBottom: c.flag ? 12 : 0 }}>
@@ -2057,8 +2062,10 @@ function WhoPage() {
           )}
         </div>
       ))}
+      </div>
 
       <h2 className="section">When this isn't really a due process issue</h2>
+      <div className="measure">
       <p>
         Not every disagreement with a school is a due process matter. A few
         situations that look like ours but really aren't:
@@ -2086,6 +2093,7 @@ function WhoPage() {
           specific needs not being met under their IEP.
         </li>
       </ul>
+      </div>
 
       <div className="cta-strip">
         <h3>Not sure if your situation fits?</h3>
@@ -2217,17 +2225,17 @@ const FAQS = [
 function FaqPage() {
   const [openIndex, setOpenIndex] = useState(0);
   return (
-    <div className="page fade-in">
+    <div className="page-mid fade-in">
       <div className="eyebrow">Common questions</div>
       <h1 className="display" style={{ fontSize: 42 }}>
         Frequently <em>asked</em>.
       </h1>
-      <p className="lede">
+      <p className="lede measure">
         The questions parents ask most often, with real answers — not legal
         hedges. If your question isn't here, the chat is the best way to ask.
       </p>
 
-      <div style={{ marginTop: 32 }}>
+      <div className="faq-list" style={{ marginTop: 32 }}>
         {FAQS.map((faq, i) => (
           <div className="faq-item" key={i}>
             <div className="faq-q" onClick={() => setOpenIndex(openIndex === i ? -1 : i)}>
@@ -2335,12 +2343,12 @@ const RESOURCES = [
 
 function ResourcesPage() {
   return (
-    <div className="page fade-in">
+    <div className="page-mid fade-in">
       <div className="eyebrow">Resources</div>
       <h1 className="display" style={{ fontSize: 42 }}>
         Where to <em>look</em> next.
       </h1>
-      <p className="lede">
+      <p className="lede measure">
         Direct links to the agencies, laws, and organizations we reference
         throughout this tool. Useful if you want to read the source material
         yourself, or if you're at a stage where another organization can help.
@@ -2383,12 +2391,13 @@ function ResourcesPage() {
 
 function AboutPage() {
   return (
-    <div className="page fade-in">
+    <div className="page-mid fade-in">
       <div className="eyebrow">About</div>
       <h1 className="display" style={{ fontSize: 42 }}>
         About <span className="bh-wordmark bh-wordmark--inline">Be <span className="bh-heard">Heard</span></span>
       </h1>
 
+      <div className="about-body">
       <h2 className="section" style={{ marginTop: 32 }}>How This Tool Can Help</h2>
       <p>
         This is a guided tool for New York parents who think their child's
@@ -2465,6 +2474,7 @@ function AboutPage() {
         {" · "}
         <a href="#/privacy" onClick={(e) => { e.preventDefault(); go("/privacy"); }}>Privacy Policy</a>
       </p>
+      </div>
     </div>
   );
 }
