@@ -342,6 +342,10 @@ body, html, #root {
 }
 /* Prose keeps a readable measure even when it sits inside a wider tier. */
 .measure { max-width: 65ch; }
+/* Center the measure column under a centered heading (block centered; multi-line
+   text stays left-aligned unless .text-center is also set). */
+.measure.center { margin-left: auto; margin-right: auto; }
+.measure.text-center { text-align: center; }
 
 @media (max-width: 720px) {
   .page, .page-wide, .page-mid { padding: 32px 18px 60px; }
@@ -1546,8 +1550,8 @@ function HomePage() {
 
       <div className="page-mid">
         <div className="rights-section">
-          <h2 className="section" style={{ marginTop: 0 }}>You have the right to push back.</h2>
-          <div className="measure">
+          <h2 className="section" style={{ marginTop: 0, textAlign: "center" }}>You have the right to push back.</h2>
+          <div className="measure center">
           <p>
             Federal law — IDEA, the Individuals with Disabilities Education Act —
             gives every parent in New York the right to challenge a special
@@ -1591,8 +1595,8 @@ function HomePage() {
           </div>
         </div>
 
-        <h2 className="section">Common situations we help with</h2>
-        <p className="muted measure">
+        <h2 className="section" style={{ textAlign: "center" }}>Common situations we help with</h2>
+        <p className="muted measure center text-center">
           Tap any of these to see what it looks like in our tool. You don't have to
           fit neatly into a category — most parents don't.
         </p>
@@ -1724,8 +1728,8 @@ function HomePage() {
           </button>
         </div>
 
-        <h2 className="section">You Can Do Something About It</h2>
-        <div className="measure">
+        <h2 className="section" style={{ textAlign: "center" }}>You Can Do Something About It</h2>
+        <div className="measure center">
         <p>
           The thing we hear most from parents — both before and after they
           finally file — is some version of: <em>I didn't know I could do
