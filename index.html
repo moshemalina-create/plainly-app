@@ -726,23 +726,21 @@ strong { font-weight: 500; color: var(--ink); }
 }
 .how-step-text p { font-size: 16.5px; color: var(--ink-muted); line-height: 1.6; margin: 0; }
 
-/* Illustration container — the durable element; content swaps out later. */
+/* Image container — full-bleed photo, rounded corners clip it, hairline border
+   for separation from the cream page (same family as the hero photo). */
 .how-step-visual {
   min-width: 0;
-  background: var(--surface-2);
+  border: 1px solid var(--border);
   border-radius: 14px;
-  padding: 28px;
+  overflow: hidden;
   aspect-ratio: 4 / 3;
-  display: flex;
-  align-items: center;
-  justify-content: center;
 }
 .how-visual-img {
   display: block;
-  max-width: 100%;
-  max-height: 100%;
-  object-fit: contain;
-  border-radius: 6px;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
 }
 /* Step 3 empty state: quiet geometric mark in palette colors, no text. */
 .how-empty { color: var(--ink); opacity: 0.5; display: flex; }
@@ -1686,7 +1684,7 @@ function HomePage() {
               </p>
             </div>
             <div className="how-step-visual">
-              <img className="how-visual-img" src="/Images/teacher-guiding-students.webp" alt="A teacher guiding students at a table" loading="lazy" decoding="async" />
+              <img className="how-visual-img" src="/Images/get-something-useful.webp" alt="A parent at a desk holding a printed due process complaint, with an IEP binder, a next-steps checklist, and a laptop" loading="lazy" decoding="async" />
             </div>
           </div>
 
@@ -1703,13 +1701,7 @@ function HomePage() {
               </p>
             </div>
             <div className="how-step-visual">
-              <div className="how-empty">
-                <svg viewBox="0 0 64 64" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <rect x="8" y="13" width="48" height="38" rx="7" />
-                  <circle className="how-empty-dot" cx="23" cy="28" r="4.5" />
-                  <path d="M12 48 L26 34 L36 43 L45 34 L52 41" />
-                </svg>
-              </div>
+              <img className="how-visual-img" src="/Images/decide-what-to-do.webp" alt="Two parents discussing their options with an advisor at a table, beside a checklist of options: resolution session, mediation, agreement, and hearing" loading="lazy" decoding="async" />
             </div>
           </div>
         </div>
