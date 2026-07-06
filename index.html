@@ -745,6 +745,8 @@ strong { font-weight: 500; color: var(--ink); }
   line-height: 1.5;
   animation: cd-in 0.28s ease both;
 }
+.cd-p { margin: 0; }
+.cd-p + .cd-p { margin-top: 0.6em; }
 @keyframes cd-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
 .cd-user {
   background: var(--ink);
@@ -1739,9 +1741,14 @@ const HERO_DEMO_DOC = [
   { h: true, w: "46%" }, { w: "94%" }, { w: "88%" }, { w: "97%" },
   { h: true, w: "38%" }, { w: "92%" }, { w: "72%" },
 ];
-// Resting greeting = the last paragraph of the live chat's OPENING, reused so
-// it always matches the real widget. Computed inside the component (render
-// time) rather than here — at module-eval OPENING (defined later) is in the TDZ.
+// The demo's resting greeting is its own purpose-written copy — intentionally
+// NOT derived from the live chat's OPENING constant (that link is severed).
+// Two paragraphs, joined by a blank line and rendered as the real chat renders
+// a multi-paragraph assistant message (see `paras` in HeroChatDemo).
+const HERO_DEMO_GREETING =
+  "Hi. I'm here to help you make sense of what's going on with your child's special education — just tell me what's going on in your own words, and if you've got a document like the IEP, you can attach it any time and I'll take a look." +
+  "\n\n" +
+  "To start — how old is your child, and what's been worrying you?";
 // Timing (ms) — tune pace here. ~30s loop across the four scenario resets.
 const CD = {
   fresh: 480, focus: 340, type: 40, sendPause: 320, afterSend: 480,
@@ -1769,7 +1776,8 @@ function HeroCursor({ phase }) {
 }
 
 function HeroChatDemo() {
-  const HERO_DEMO_GREETING = OPENING.split("\n\n").pop();
+  // Render bubble text as the real chat does: blank-line-separated paragraphs.
+  const paras = (t) => String(t).split("\n\n").map((p, k) => <p key={k} className="cd-p">{p}</p>);
   const reduced = useMemo(
     () => typeof window !== "undefined" && window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches,
     []
@@ -1871,8 +1879,8 @@ function HeroChatDemo() {
       <div className="chat-demo reduced" aria-hidden="true">
         <div className="cd-header"><span className="cd-header-mark" /><span className="cd-header-title">Be Heard</span></div>
         <div className="cd-thread">
-          <div className="cd-bubble cd-assistant">{HERO_DEMO_GREETING}</div>
-          <div className="cd-bubble cd-user">{HERO_DEMO_BEATS[3].user}</div>
+          <div className="cd-bubble cd-assistant">{paras(HERO_DEMO_GREETING)}</div>
+          <div className="cd-bubble cd-user">{paras(HERO_DEMO_BEATS[3].user)}</div>
           <HeroDocMock lines={HERO_DEMO_DOC} />
         </div>
         <div className="cd-input">
@@ -1891,7 +1899,7 @@ function HeroChatDemo() {
         {messages.map((m, i) =>
           m.role === "doc"
             ? <HeroDocMock key={i} lines={m.lines} />
-            : <div key={i} className={"cd-bubble " + (m.role === "user" ? "cd-user" : "cd-assistant")}>{m.text}</div>
+            : <div key={i} className={"cd-bubble " + (m.role === "user" ? "cd-user" : "cd-assistant")}>{paras(m.text)}</div>
         )}
         {typing && <div className="cd-typing"><span className="cd-dot" /><span className="cd-dot" /><span className="cd-dot" /></div>}
       </div>
