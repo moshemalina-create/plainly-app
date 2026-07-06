@@ -690,8 +690,9 @@ strong { font-weight: 500; color: var(--ink); }
 
 /* ---- Hero chat demo — scripted marketing animation; NOT the real chat ---- */
 .chat-demo {
+  position: relative;
   width: 100%;
-  aspect-ratio: 4 / 5;
+  height: var(--cd-h, 372px);   /* fixed height, sized to the tallest state (beat 4) */
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 14px;
@@ -699,22 +700,45 @@ strong { font-weight: 500; color: var(--ink); }
   display: flex;
   flex-direction: column;
   box-shadow: var(--shadow);
-  transition: opacity 0.6s ease;
+  transition: opacity 0.4s ease;
 }
 .chat-demo.fading { opacity: 0; }
+.chat-demo.reduced { height: auto; }        /* static frame grows to show greeting + ask + doc */
 .chat-demo.reduced * { animation: none !important; }
+
+.cd-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border-soft);
+  flex-shrink: 0;
+}
+.cd-header-mark {
+  width: 9px; height: 9px;
+  border-radius: 50%;
+  background: var(--action);
+  box-shadow: 0 0 0 3px var(--action-soft);
+}
+.cd-header-title {
+  font-family: 'Fraunces', serif;
+  font-weight: 500;
+  font-size: 13px;
+  letter-spacing: -0.01em;
+  color: var(--ink);
+}
+
 .cd-thread {
   flex: 1;
   min-height: 0;
-  overflow: hidden;
-  padding: 16px 16px 6px;
+  overflow: hidden;          /* JS auto-scrolls to newest; greeting scrolls up */
+  padding: 14px;
   display: flex;
-  flex-direction: column;
-  justify-content: flex-end;
+  flex-direction: column;    /* top-anchored — greeting sits at the top */
   gap: 10px;
 }
 .cd-bubble {
-  max-width: 86%;
+  max-width: 88%;
   padding: 9px 13px;
   border-radius: 14px;
   font-size: 14px;
@@ -751,7 +775,7 @@ strong { font-weight: 500; color: var(--ink); }
 .cd-dot:nth-child(2) { animation-delay: 0.15s; }
 .cd-dot:nth-child(3) { animation-delay: 0.3s; }
 @keyframes cd-bounce { 0%,60%,100% { transform: translateY(0); opacity: 0.4; } 30% { transform: translateY(-4px); opacity: 1; } }
-/* Document mock (beat 4) */
+
 .cd-doc {
   align-self: stretch;
   background: #FFFDF8;
@@ -769,9 +793,9 @@ strong { font-weight: 500; color: var(--ink); }
 }
 .cd-doc-h { height: 8px; border-radius: 3px; background: rgba(27,58,91,0.28); margin: 12px 0 8px; animation: cd-in 0.25s ease both; }
 .cd-doc-line { height: 7px; border-radius: 3px; background: var(--border); margin: 7px 0; animation: cd-in 0.25s ease both; }
-/* Input-like bar — non-interactive */
+
 .cd-input {
-  margin: 8px 12px 12px;
+  margin: 0 12px 12px;
   background: #fff;
   border: 1px solid var(--border);
   border-radius: 12px;
@@ -780,6 +804,12 @@ strong { font-weight: 500; color: var(--ink); }
   align-items: center;
   gap: 8px;
   min-height: 42px;
+  flex-shrink: 0;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+.cd-input.focused {
+  border-color: var(--ink);
+  box-shadow: 0 0 0 3px rgba(27, 58, 91, 0.12);
 }
 .cd-input-text {
   flex: 1;
@@ -793,8 +823,7 @@ strong { font-weight: 500; color: var(--ink); }
 .cd-input-text.empty { color: var(--ink-soft); }
 .cd-caret {
   display: inline-block;
-  width: 1.5px;
-  height: 1em;
+  width: 1.5px; height: 1em;
   background: var(--action);
   vertical-align: text-bottom;
   margin-left: 1px;
@@ -810,6 +839,20 @@ strong { font-weight: 500; color: var(--ink); }
   flex-shrink: 0;
   font-size: 15px;
 }
+
+/* Simulated cursor — plays once (first cycle) to "click" the input. */
+.cd-cursor {
+  position: absolute;
+  z-index: 6;
+  pointer-events: none;
+  filter: drop-shadow(0 1px 2px rgba(27,58,91,0.3));
+  transition: left 0.85s cubic-bezier(.4,0,.2,1), top 0.85s cubic-bezier(.4,0,.2,1), opacity 0.3s;
+  opacity: 0;
+}
+.cd-cursor.start { left: 64%; top: 56%; opacity: 1; }
+.cd-cursor.input { left: 17%; top: 80%; opacity: 1; }
+.cd-cursor.click { left: 17%; top: 80%; opacity: 1; animation: cd-tap 0.28s ease; }
+@keyframes cd-tap { 0%,100% { transform: scale(1); } 45% { transform: scale(0.8); } }
 
 .hero-stat {
   max-width: 1120px;
@@ -1676,10 +1719,12 @@ function Footer() {
 
 // ============================================================================
 // HERO CHAT DEMO — scripted, self-contained looping simulation of the chat.
-// Not the real chat component and not interactive. Sits in the hero photo slot.
+// Not the real chat component and not interactive. Sits in the hero slot.
+// Each cycle is one self-contained mini-conversation: fresh chat (greeting) →
+// user types → sends → typing dots → truncated reply → hold → crossfade reset.
 // ============================================================================
 
-// Four beats. Copy/pacing are editable here without touching the loop logic.
+// Four scenarios. Copy/pacing are editable here without touching the loop.
 const HERO_DEMO_BEATS = [
   { user: "My son is 10 and I don't think his services are enough — he gets 30 minutes of speech a week.",
     reply: "That's worth pushing on. First question: is he making progress toward his IEP goals, or…" },
@@ -1694,8 +1739,15 @@ const HERO_DEMO_DOC = [
   { h: true, w: "46%" }, { w: "94%" }, { w: "88%" }, { w: "97%" },
   { h: true, w: "38%" }, { w: "92%" }, { w: "72%" },
 ];
-// Timing constants (ms) — tune pace here. ~30s total loop.
-const CD = { type: 40, sendPause: 320, afterSend: 520, typing: 950, chunk: 150, docLine: 300, beatHold: 1500, endHold: 2800, fade: 650, startDelay: 500 };
+// Resting greeting = the last paragraph of the live chat's OPENING, reused so
+// it always matches the real widget. Computed inside the component (render
+// time) rather than here — at module-eval OPENING (defined later) is in the TDZ.
+// Timing (ms) — tune pace here. ~30s loop across the four scenario resets.
+const CD = {
+  fresh: 480, focus: 340, type: 40, sendPause: 320, afterSend: 480,
+  typing: 900, chunk: 150, docLine: 300, beatHold: 1400, fade: 420,
+  cursorSettle: 320, cursorMove: 950, cursorClick: 300,
+};
 
 function HeroDocMock({ lines }) {
   return (
@@ -1706,20 +1758,40 @@ function HeroDocMock({ lines }) {
   );
 }
 
+function HeroCursor({ phase }) {
+  return (
+    <div className={"cd-cursor " + phase}>
+      <svg viewBox="0 0 24 24" width="22" height="22">
+        <path d="M5 2.5 L19.5 12.5 L12.5 13.2 L9.8 20.5 Z" fill="var(--ink)" stroke="#fff" strokeWidth="1.3" strokeLinejoin="round" />
+      </svg>
+    </div>
+  );
+}
+
 function HeroChatDemo() {
+  const HERO_DEMO_GREETING = OPENING.split("\n\n").pop();
   const reduced = useMemo(
     () => typeof window !== "undefined" && window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches,
     []
   );
   const rootRef = useRef(null);
+  const threadRef = useRef(null);
+  const cursorDoneRef = useRef(false);   // cursor intro plays once per mount
   const [active, setActive] = useState(false);
-  const [messages, setMessages] = useState([]);
+  const [messages, setMessages] = useState([{ role: "assistant", text: HERO_DEMO_GREETING }]);
   const [input, setInput] = useState("");
   const [typing, setTyping] = useState(false);
   const [fading, setFading] = useState(false);
+  const [focused, setFocused] = useState(false);
+  const [cursor, setCursor] = useState("");   // "", "start", "input", "click"
 
-  // Only run while on-screen and the tab is visible — saves cycles; restarts
-  // fresh on re-entry (simpler and steadier than mid-flight resume).
+  // Keep the newest content in view (real-chat behavior).
+  useEffect(() => {
+    const t = threadRef.current;
+    if (t) t.scrollTo({ top: t.scrollHeight, behavior: reduced ? "auto" : "smooth" });
+  }, [messages, typing, reduced]);
+
+  // Run only while on-screen and the tab is visible; restart fresh on re-entry.
   useEffect(() => {
     if (reduced) return;
     const el = rootRef.current;
@@ -1736,7 +1808,7 @@ function HeroChatDemo() {
     return () => { io.disconnect(); document.removeEventListener("visibilitychange", onVis); };
   }, [reduced]);
 
-  // The animation loop. Cancels cleanly when `active` flips false or on unmount.
+  // The loop. Cancels cleanly when `active` flips false or on unmount.
   useEffect(() => {
     if (reduced || !active) return;
     let cancelled = false;
@@ -1748,13 +1820,28 @@ function HeroChatDemo() {
     (async () => {
       try {
         while (!cancelled) {
-          setFading(false); setMessages([]); setInput(""); setTyping(false);
-          await wait(CD.startDelay); guard();
           for (let bi = 0; bi < HERO_DEMO_BEATS.length; bi++) {
             const b = HERO_DEMO_BEATS[bi];
+            // Fresh mini-conversation: greeting only (fades in after the reset).
+            setMessages([{ role: "assistant", text: HERO_DEMO_GREETING }]);
+            setInput(""); setTyping(false); setFocused(false); setFading(false);
+            await wait(CD.fresh); guard();
+            // Cursor intro — once per mount, before the first scenario.
+            if (bi === 0 && !cursorDoneRef.current) {
+              cursorDoneRef.current = true;
+              setCursor("start"); await wait(CD.cursorSettle); guard();
+              setCursor("input"); await wait(CD.cursorMove); guard();
+              setCursor("click"); await wait(CD.cursorClick); guard();
+              setFocused(true); setCursor("");
+              await wait(CD.focus); guard();
+            } else {
+              setFocused(true); await wait(CD.focus); guard();
+            }
+            // Typewriter the query into the input bar.
             for (let i = 1; i <= b.user.length; i++) { guard(); setInput(b.user.slice(0, i)); await wait(CD.type); }
             await wait(CD.sendPause); guard();
-            setInput("");
+            // Send: clear input, drop the user bubble in.
+            setInput(""); setFocused(false);
             setMessages((m) => [...m, { role: "user", text: b.user }]);
             await wait(CD.afterSend); guard();
             setTyping(true); await wait(CD.typing); guard(); setTyping(false);
@@ -1766,9 +1853,10 @@ function HeroChatDemo() {
               const words = b.reply.split(" ");
               for (let wi = 0; wi < words.length; wi += 2) { await wait(CD.chunk); guard(); setLast({ text: words.slice(0, wi + 2).join(" ") }); }
             }
-            await wait(bi === HERO_DEMO_BEATS.length - 1 ? CD.endHold : CD.beatHold); guard();
+            await wait(CD.beatHold); guard();
+            // Crossfade out; the next iteration resets to the fresh greeting.
+            setFading(true); await wait(CD.fade); guard();
           }
-          setFading(true); await wait(CD.fade); guard();
         }
       } catch (e) { /* cancelled */ }
     })();
@@ -1776,13 +1864,14 @@ function HeroChatDemo() {
     return () => { cancelled = true; timers.forEach(clearTimeout); };
   }, [active, reduced]);
 
-  // Reduced motion: one static frame that communicates on its own — an earlier
-  // truncated reply for flavor, the beat-4 ask, and the finished document.
+  // Reduced motion: one static frame that stands on its own — greeting,
+  // the beat-4 ask, and the finished document.
   if (reduced) {
     return (
       <div className="chat-demo reduced" aria-hidden="true">
+        <div className="cd-header"><span className="cd-header-mark" /><span className="cd-header-title">Be Heard</span></div>
         <div className="cd-thread">
-          <div className="cd-bubble cd-assistant">{HERO_DEMO_BEATS[2].reply}</div>
+          <div className="cd-bubble cd-assistant">{HERO_DEMO_GREETING}</div>
           <div className="cd-bubble cd-user">{HERO_DEMO_BEATS[3].user}</div>
           <HeroDocMock lines={HERO_DEMO_DOC} />
         </div>
@@ -1796,7 +1885,9 @@ function HeroChatDemo() {
 
   return (
     <div ref={rootRef} className={"chat-demo" + (fading ? " fading" : "")} aria-hidden="true">
-      <div className="cd-thread">
+      {cursor ? <HeroCursor phase={cursor} /> : null}
+      <div className="cd-header"><span className="cd-header-mark" /><span className="cd-header-title">Be Heard</span></div>
+      <div className="cd-thread" ref={threadRef}>
         {messages.map((m, i) =>
           m.role === "doc"
             ? <HeroDocMock key={i} lines={m.lines} />
@@ -1804,7 +1895,7 @@ function HeroChatDemo() {
         )}
         {typing && <div className="cd-typing"><span className="cd-dot" /><span className="cd-dot" /><span className="cd-dot" /></div>}
       </div>
-      <div className="cd-input">
+      <div className={"cd-input" + (focused ? " focused" : "")}>
         <div className={"cd-input-text" + (input ? "" : " empty")}>
           {input || "Ask about your child's situation…"}
           {input ? <span className="cd-caret" /> : null}
