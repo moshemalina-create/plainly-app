@@ -4755,6 +4755,17 @@ h1 em { font-style: italic; color: var(--accent); }
   border-top-right-radius: 4px;
   align-self: flex-end;
 }
+/* Clickable links inside chat messages: terracotta + underlined on the light
+   assistant bubble; cream on the dark parent bubble so a pasted URL stays
+   legible there too. */
+.bubble .chat-link {
+  color: var(--action);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  word-break: break-word;
+}
+.bubble .chat-link:hover { color: var(--action-deep); }
+.bubble.parent .chat-link { color: var(--bg); }
 
 .typing {
   display: inline-flex;
@@ -6424,6 +6435,27 @@ let accountRegeneratedThisLoad = false;
 // Render a message string with real paragraph and line breaks. Splits on blank
 // lines into <p> paragraphs, converts single newlines to <br>, and renders
 // **bold** spans. Keeps everything as safe React elements (no dangerouslySetHTML).
+// Turn bare http/https URLs in a plain-text run into clickable <a> elements.
+// Returns an array of strings + <a> React elements (NOT HTML) so it stays
+// inside React's auto-escaping — no innerHTML, no injection surface. Links open
+// in a new tab (users have in-progress chat/draft state) with noopener noreferrer.
+// Only http(s) is linked; trailing sentence punctuation is peeled back out of the
+// href so a period or closing paren ending the sentence isn't swallowed into it.
+function linkify(text, keyPrefix) {
+  const segments = String(text).split(/(https?:\/\/[^\s<]+)/g);
+  return segments.map((seg, i) => {
+    if (i % 2 === 0) return seg; // even segments are the surrounding text
+    const trailing = (seg.match(/[.,;:!?)\]}'"]+$/) || [""])[0];
+    const url = trailing ? seg.slice(0, seg.length - trailing.length) : seg;
+    return (
+      <React.Fragment key={keyPrefix + "-a" + i}>
+        <a href={url} target="_blank" rel="noopener noreferrer" className="chat-link">{url}</a>
+        {trailing}
+      </React.Fragment>
+    );
+  });
+}
+
 function renderInlineBold(text, keyPrefix) {
   // Split on **bold** markers
   const parts = text.split(/(\*\*[^*]+\*\*)/g);
@@ -6431,7 +6463,7 @@ function renderInlineBold(text, keyPrefix) {
     if (/^\*\*[^*]+\*\*$/.test(part)) {
       return <strong key={keyPrefix + "-b" + i}>{part.slice(2, -2)}</strong>;
     }
-    return part;
+    return linkify(part, keyPrefix + "-" + i);
   });
 }
 
