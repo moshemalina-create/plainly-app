@@ -70,10 +70,10 @@ const SUPABASE_URL = "https://fzlztzqdvxibxnnfoeyc.supabase.co";
 // Publishable (anon-equivalent) key. Public by design — security is RLS, not
 // secrecy. The service-role key is NOT here and never goes in the client.
 const SUPABASE_PUBLISHABLE_KEY = "sb_publishable_41fCnhgEDTpo3IuSpB9PVA_U1NRtf-l";
-// Recorded with each new account's consent. PLACEHOLDER wording until the owner
-// supplies the real consent text — going live on placeholder text is a launch
-// gate (see docs/accounts-persistence.md).
-const CONSENT_VERSION = "placeholder-2026-06";
+// Recorded (with a timestamp) in each new account's auth user_metadata at
+// account creation. Version = the "Last updated" date of the Terms of Use /
+// Privacy Policy the user assented to via the login clickwrap.
+const CONSENT_VERSION = "2026-07-06";
 
 let sb = null;
 try {
@@ -349,6 +349,37 @@ body, html, #root {
 /* Content-page reading widths inside the 960 tier. */
 .faq-list { max-width: 720px; }
 .about-body p { max-width: 65ch; }
+
+/* Legal documents (Terms / Privacy) — austere, readable, no cards. */
+.legal-doc {
+  max-width: 68ch;
+  margin: 0 auto;
+  padding: 56px 24px 96px;
+}
+.legal-doc h1 {
+  font-family: 'Fraunces', serif;
+  font-weight: 500;
+  font-size: 30px;
+  letter-spacing: -0.015em;
+  color: var(--ink);
+  margin: 0 0 6px;
+}
+.legal-doc h2 {
+  font-family: 'Fraunces', serif;
+  font-weight: 500;
+  font-size: 19px;
+  color: var(--ink);
+  margin: 34px 0 8px;
+  scroll-margin-top: 84px;
+}
+.legal-doc p {
+  font-size: 15.5px;
+  line-height: 1.68;
+  color: var(--ink-muted);
+  margin: 0 0 14px;
+}
+.legal-doc p strong { color: var(--ink); font-weight: 600; }
+.legal-doc a { color: var(--action); overflow-wrap: anywhere; }
 
 @media (max-width: 720px) {
   .page, .page-wide, .page-mid { padding: 32px 18px 60px; }
@@ -1497,12 +1528,18 @@ function Footer() {
         </div>
         <div className="footer-col">
           <h5>Legal</h5>
-          <a href="#/disclaimer" onClick={(e) => { e.preventDefault(); go("/disclaimer"); }}>Disclaimer</a>
+          <a href="#/terms" onClick={(e) => { e.preventDefault(); go("/terms"); }}>Terms of Use</a>
           <a href="#/privacy" onClick={(e) => { e.preventDefault(); go("/privacy"); }}>Privacy</a>
           <a href="#/contact" onClick={(e) => { e.preventDefault(); go("/contact"); }}>Contact</a>
         </div>
       </div>
       <div className="footer-disclaimer">
+        <p style={{ margin: "0 0 8px" }}>
+          By using Be Heard you agree to our{" "}
+          <a href="#/terms" onClick={(e) => { e.preventDefault(); go("/terms"); }}>Terms of Use</a>{" "}
+          and{" "}
+          <a href="#/privacy" onClick={(e) => { e.preventDefault(); go("/privacy"); }}>Privacy Policy</a>.
+        </p>
         This tool is not a law firm and does not provide legal advice. The drafts and
         guidance produced by this tool are templates and informational content
         based on what you tell it — they do not create an attorney-client
@@ -2470,7 +2507,7 @@ function AboutPage() {
         wrong? <a href="#/contact" onClick={(e) => { e.preventDefault(); go("/contact"); }}>Contact us</a>.
       </p>
       <p className="muted" style={{ marginTop: 24, fontSize: 14 }}>
-        <a href="#/disclaimer" onClick={(e) => { e.preventDefault(); go("/disclaimer"); }}>Legal Disclaimer</a>
+        <a href="#/terms" onClick={(e) => { e.preventDefault(); go("/terms"); }}>Terms of Use</a>
         {" · "}
         <a href="#/privacy" onClick={(e) => { e.preventDefault(); go("/privacy"); }}>Privacy Policy</a>
       </p>
@@ -2497,7 +2534,7 @@ function ContactPage() {
       <div className="card">
         <h3 className="sub">Email</h3>
         <p className="muted" style={{ margin: 0 }}>
-          <a href="mailto:hello@plainly.example">hello@plainly.example</a>
+          <a href="mailto:beheardspecialeducation@gmail.com">beheardspecialeducation@gmail.com</a>
           <span className="soft" style={{ display: "block", marginTop: 4 }}>
             (placeholder — actual email coming once we have hosting set up)
           </span>
@@ -2516,168 +2553,31 @@ function ContactPage() {
 }
 
 // ============================================================================
-// PAGE: PRIVACY (placeholder)
+// PAGES: TERMS OF USE + PRIVACY POLICY (verbatim legal documents)
 // ============================================================================
 
-function PrivacyPage() {
-  return (
-    <div className="page fade-in">
-      <div className="eyebrow">Privacy</div>
-      <h1 className="display" style={{ fontSize: 42 }}>Privacy policy.</h1>
-      <p className="lede">
-        We're working on a real privacy policy. Until then, here's the short
-        version of how we handle your information.
-      </p>
-      <div className="card">
-        <h3 className="sub">What we collect</h3>
-        <p className="muted">
-          The chat conversation you have with our assistant. The structured
-          information the assistant captures from that conversation. The drafts
-          and documents we generate based on it.
-        </p>
-      </div>
-      <div className="card">
-        <h3 className="sub">Where it lives</h3>
-        <p className="muted">
-          In your browser's local storage on your own device. We don't have
-          accounts, servers, or databases storing your child's information.
-          Clearing your browser data or using the "Start fresh" button wipes it.
-        </p>
-      </div>
-      <div className="card">
-        <h3 className="sub">What we send to third parties</h3>
-        <p className="muted">
-          The chat messages are sent to Anthropic's Claude API to generate
-          responses. Anthropic's data handling policies apply during transit
-          and processing. They don't use API messages to train models.
-        </p>
-      </div>
-    </div>
-  );
+// Hash-route redirect helper (keeps #/disclaimer pointing at #/terms).
+function Redirect({ to }) {
+  useEffect(() => { go(to); }, [to]);
+  return null;
 }
 
-// ============================================================================
-// PAGE: DISCLAIMER (legal sibling of the privacy page)
-// ============================================================================
+const TERMS_HTML = `<h1><strong>Be Heard — Terms of Use</strong></h1><p>Last updated: <strong>July 6, 2026</strong></p><p><strong>PLEASE READ THESE TERMS OF USE CAREFULLY BEFORE USING THIS SITE.</strong></p><p>These Terms of Use (the “Terms”) govern your access to and use of the Be Heard website and the tools, content, and services made available through it (together, the “Service”).  By accessing or using the Service, you agree to be bound by these Terms and by our Privacy Policy, which is incorporated into these Terms by reference. If you do not agree to these Terms, do not use the Service.</p><p>You must be at least 18 years of age and legally able to enter into a contract to use the Service. The Service is intended for parents and guardians of students in New York State.</p><p>We may revise these Terms from time to time. The “Last updated” date above reflects the most recent version, and your continued use of the Service after a revision takes effect constitutes acceptance of the revised Terms. </p><h2><strong>1. The Service</strong></h2><p>Be Heard is a free informational and document-preparation tool for New York parents navigating special education disputes with their school districts. The Service provides general information about special education rights and procedures under the Individuals with Disabilities Education Act (“IDEA”) and New York State law and regulations, together with an automated, AI-assisted chat that helps you organize your situation and prepare drafts of letters, requests, and due process complaints for your own use. At no time do we review your information for legal sufficiency, draw legal conclusions, provide legal advice, opinions, or recommendations about your legal rights, remedies, defenses, options, or strategies, or apply the law to the facts of your particular situation.</p><h2><strong>2. Not Legal Advice; Not a Law Firm</strong></h2><p>Be Heard is not a law firm, does not practice law, and may not perform services performed by an attorney. Nothing provided on or through the Service — including chat responses, generated documents, timelines, and explanatory content — constitutes legal advice. The information provided is general in nature, may not reflect the most current legal developments, and may not apply to your specific circumstances. The Service and the documents it produces are not a substitute for the advice or services of an attorney. If you need legal advice for your specific situation, you should consult a licensed attorney.</p><h2><strong>3. No Attorney–Client Relationship; Self-Representation</strong></h2><p>Your use of the Service does not create an attorney–client relationship between you and Be Heard, its creator, or anyone associated with it, and your communications with the Service are not protected by attorney–client privilege. If you use documents prepared with the Service, you are representing yourself (proceeding pro se) in your matter.</p><h2><strong>4. An AI-Assisted Service Built for This Purpose</strong></h2><p>The chat that powers the Service is built on Claude, an artificial intelligence model developed by Anthropic. The Service is not a generic chatbot: we have configured the underlying model with detailed instructions developed specifically to guide New York parents through common special education situations — for example, helping you identify what kind of claim your situation may present, explaining the typical sequence of steps (letters, meetings, mediation, resolution sessions, and due process complaints), and flagging issues that may be time-sensitive.</p><p>Even so, every chat response and every document is generated by artificial intelligence. AI can make mistakes: it can misstate facts or law, omit important information, or produce content that sounds confident but is wrong. AI-generated output is not reviewed by an attorney before it reaches you. You are responsible for critically reviewing everything the Service produces and independently verifying anything you intend to rely on.</p><h2><strong>5. Documents Are Starting Points; Your Responsibility to Review</strong></h2><p>Any letters, requests, complaint drafts, or other documents the Service produces are templates personalized to the information you provide. They are starting points, not finished legal filings. You are solely responsible for reviewing every document for accuracy and completeness, editing it as needed, and deciding whether and when to send or file it. You should verify all facts, dates, names, deadlines, and legal requirements before acting. You represent that the information you provide to the Service is, to the best of your knowledge, accurate.</p><h2><strong>6. Deadlines and Time Limits</strong></h2><p>Special education and due process matters are subject to strict legal deadlines and statutes of limitations. While the Service may flag time-sensitive issues, it cannot guarantee that every applicable deadline will be identified. You are responsible for confirming and meeting all deadlines that apply to your situation.</p><h2><strong>7. No Guarantee of Outcome</strong></h2><p>Be Heard does not guarantee any particular result. Special education disputes are fact-specific, and their outcomes depend on many factors outside the Service’s control. Nothing on the Service should be understood as a prediction or assurance about how your matter will be resolved.</p><h2><strong>8. When to Consult an Attorney</strong></h2><p>The Service is designed for parents pursuing matters on their own, and for many everyday disputes self-representation is workable. However, the Service is not a substitute for a licensed attorney. For higher-stakes matters — including significant tuition reimbursement claims, disciplinary or manifestation-determination proceedings, or any matter that escalates to a hearing where the school district is represented by counsel — you should strongly consider consulting a qualified special education attorney or trained advocate.</p><h2><strong>9. New York Focus</strong></h2><p>The Service addresses special education procedures under federal law (IDEA) and New York State law and regulations, and is intended for use by parents of students in New York. The information provided may not be accurate or applicable in other states.</p><h2><strong>10. Not Affiliated with Any Government Agency or School District</strong></h2><p>Be Heard is an independent tool. It is not affiliated with, endorsed by, or connected to the New York State Education Department, any school district, or any government agency.</p><h2><strong>11. Information You Provide</strong></h2><p>You are responsible for the information you provide to the Service, including its accuracy. That information may include personal information about you and your child; by providing it, you represent that you are the child’s parent or legal guardian or otherwise have the right to provide it. You grant us a limited, non-exclusive, royalty-free license to use, reproduce, and process the information you provide solely for the purpose of operating the Service for you — for example, generating chat responses and documents and, if you create an account, saving your information as described in Section 18. We claim no ownership of your information or of the facts of your matter, and this license ends when your information is deleted from the Service.</p><h2><strong>12. Acceptable Use</strong></h2><p>You agree to use the Service only for your own personal, non-commercial use, on your own behalf or on behalf of your child, and in compliance with applicable law. You agree not to: (a) use the Service to prepare documents or provide services for third parties, or resell, redistribute, or commercialize the Service or its output; (b) attempt to probe, disable, overburden, or impair the Service, or interfere with any other person’s use of it; (c) access the Service by automated means, including bots, scrapers, or crawlers; (d) attempt to manipulate, extract, or circumvent the instructions, limitations, or safety measures of the AI chat, or use the chat for purposes unrelated to the Service’s stated purpose; (e) submit content that is unlawful or that infringes or violates another person’s rights; or (f) impersonate any person or misrepresent your affiliation with any person or entity. We reserve the right to suspend or terminate access for violations of this Section.</p><h2><strong>13. Intellectual Property; Limited License</strong></h2><p>The Service and its contents — including text, graphics, logos, page designs, explanatory materials, and the selection and arrangement thereof (the “Materials”) — are owned by Be Heard or its licensors and are protected by copyright, trademark, and other intellectual property laws. We grant you a limited, personal, non-exclusive, non-transferable license to access and use the Materials for your own informational, non-commercial use, and to use, edit, send, and file the documents the Service generates for you in connection with your own matter. Except as expressly permitted, the Materials may not be copied, republished, distributed, or exploited in any commercial manner, and documents generated for you may not be sold or redistributed as templates or as part of any service offered to others. All rights not expressly granted are reserved.</p><h2><strong>14. Feedback</strong></h2><p>If you send us comments, suggestions, or other feedback about the Service (as distinct from the information you provide about your own matter), you agree that we may use it without restriction or compensation to you, and that it is non-confidential.</p><h2><strong>15. Links to Third-Party Sites</strong></h2><p>The Service contains links to websites operated by third parties, including government agencies, advocacy organizations, and other resources (each a “Third-Party Site”). These links are provided for your convenience only. We do not control Third-Party Sites, and we are not responsible for and do not endorse their availability, content, accuracy, products, or services. The inclusion of a link does not imply our endorsement of, or any affiliation with, a Third-Party Site. You acknowledge that you bear all risks associated with your access to and use of Third-Party Sites, and that a Third-Party Site’s own terms and privacy practices — not ours — govern your use of it.</p><h2><strong>16. Third-Party Services</strong></h2><p>The Service is built on infrastructure and services provided by third parties, including Anthropic, whose Claude API processes chat messages to generate responses, and hosting, authentication, and database providers. Information you provide is handled by these providers as described in our Privacy Policy. We are not responsible for interruptions, failures, or acts or omissions of third-party providers beyond our reasonable control.</p><h2><strong>17. Availability; Changes to the Service; Electronic Communications</strong></h2><p>The Service is provided free of charge. We may modify, suspend, or discontinue all or any part of the Service at any time, with or without notice, and we may impose limits on features or restrict access. We do not guarantee that the Service will be available, uninterrupted, timely, or error-free, and we are not responsible for delays or failures caused by events beyond our reasonable control, including internet outages and failures of third-party services.</p><p>By using the Service and providing an email address, you consent to receive communications from us electronically — such as account login links and service notices — and you agree that all agreements, notices, and disclosures we provide electronically satisfy any legal requirement that such communications be in writing.</p><h2 id="section-18"><strong>18. Additional Terms and Limitations for Account Users</strong></h2><p>This Section 18 applies if you choose to create an account. By creating an account, you acknowledge and agree to this Section 18 in addition to the rest of these Terms.</p><p><strong>(a) Accounts are optional.</strong> You can use the core features of the Service without an account. Without an account, your conversation and drafts are stored locally in your own browser and are not saved on our systems; clearing your browser data (or using the “Start fresh” feature) removes them. An account exists for one purpose: to let you save your progress and return to it later.</p><p><strong>(b) What we store — and what we don’t.</strong> If you create an account, we store your email address and the working materials needed to restore your session: a structured summary of your situation captured from your conversation, the drafts of materials such as letters and complaints that are generated by the system, and a high level summary of materials such as IEPs and clinical and other evaluations that you upload.  We do not retain the full original transcript of your chat on our systems, nor do we retain copies of the IEPs, evaluations or other materials themselves.  However, you should note that the summary of such documents that we do retain may include sensitive information regarding your child.</p><p><strong>(c) Assumption of risk.</strong> Information you save to an account — which may include sensitive information about you and your child, such as disability-related and educational information, including without limitation in the summary of documents you upload such as IEPs or evaluations — is stored on third-party cloud infrastructure. We use reasonable measures and reputable providers, but no method of storage or transmission is completely secure, and we cannot and do not guarantee the security of stored information. By choosing to create an account and save information, you acknowledge and accept these risks. If you are not comfortable with them, you should use the Service without an account.</p><p><strong>(d) Minimizing what you share.</strong> You do not need to use full names in the chat. You are free to identify yourself and your child by first name only (or by initials), and to fill in full names and other identifying details in the final documents yourself before sending or filing them. We encourage this practice if you would like an additional layer of protection.</p><p><strong>(e) Your login.</strong> The Service uses email-based login links rather than passwords. You are responsible for maintaining the security of the email account you use to log in, and for all activity that occurs under your account. Notify us promptly at <a href="mailto:beheardspecialeducation@gmail.com"><strong>beheardspecialeducation@gmail.com</strong></a><strong> </strong>if you believe your account has been accessed without authorization.</p><p><strong>(f) Suspension.</strong> We may suspend or disable an account if we detect activity that violates these Terms or threatens the security or operation of the Service.</p><h2><strong>19. Disclaimer of Warranties</strong></h2><p>THE SERVICE AND ALL MATERIALS, INFORMATION, AND DOCUMENTS PROVIDED ON OR THROUGH THE SERVICE ARE PROVIDED ON AN “AS IS” AND “AS AVAILABLE” BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED. TO THE FULLEST EXTENT PERMITTED BY LAW, WE EXPRESSLY DISCLAIM ALL WARRANTIES, INCLUDING BUT NOT LIMITED TO IMPLIED WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, TITLE, NON-INFRINGEMENT, ACCURACY, AND COMPLETENESS. WE DO NOT WARRANT THAT THE SERVICE WILL BE UNINTERRUPTED, SECURE, OR ERROR-FREE, THAT DEFECTS WILL BE CORRECTED, OR THAT THE SERVICE OR THE SERVERS THAT MAKE IT AVAILABLE ARE FREE OF VIRUSES OR OTHER HARMFUL COMPONENTS.</p><h2><strong>20. Limitation of Liability</strong></h2><p>TO THE FULLEST EXTENT PERMITTED BY LAW, BE HEARD AND ITS CREATOR, OPERATORS, AND ANYONE ASSOCIATED WITH IT WILL NOT BE LIABLE FOR ANY INDIRECT, INCIDENTAL, SPECIAL, CONSEQUENTIAL, EXEMPLARY, OR PUNITIVE DAMAGES, OR FOR ANY LOSS OF DATA, OPPORTUNITY, OR GOODWILL, ARISING OUT OF OR RELATING TO YOUR USE OF, OR INABILITY TO USE, THE SERVICE OR ANY DOCUMENT IT PRODUCES, WHETHER BASED ON CONTRACT, TORT, STATUTE, OR ANY OTHER LEGAL THEORY, AND EVEN IF WE HAVE BEEN ADVISED OF THE POSSIBILITY OF SUCH DAMAGES. THIS INCLUDES, WITHOUT LIMITATION, ANY LOSS OR HARM ARISING FROM MISSED DEADLINES, FROM THE CONTENT OF GENERATED DOCUMENTS, OR FROM THE OUTCOME OF ANY DISPUTE OR PROCEEDING.</p><p>TO THE FULLEST EXTENT PERMITTED BY LAW, OUR TOTAL AGGREGATE LIABILITY ARISING OUT OF OR RELATING TO THE SERVICE WILL NOT EXCEED ONE HUNDRED U.S. DOLLARS (US $100). THE SERVICE IS PROVIDED FREE OF CHARGE, AND THIS ALLOCATION OF RISK IS AN ESSENTIAL BASIS OF OUR MAKING IT AVAILABLE. SOME JURISDICTIONS DO NOT ALLOW THE EXCLUSION OR LIMITATION OF CERTAIN DAMAGES, SO SOME OF THE ABOVE LIMITATIONS MAY NOT APPLY TO YOU.</p><h2><strong>21. Indemnification</strong></h2><p>You agree to indemnify and hold harmless Be Heard and its creator, operators, and anyone associated with it from and against any claims, liabilities, damages, losses, and expenses (including reasonable attorneys’ fees) arising out of or relating to your violation of these Terms, your misuse of the Service, or your violation of applicable law or of the rights of any third party.</p><h2><strong>22. Termination; Right to Refuse</strong></h2><p>We reserve the right to refuse, suspend, or terminate access to the Service to anyone at any time, including for violation of these Terms. Sections of these Terms that by their nature should survive termination — including Sections 11, 13, 14, and 19 through 25 — survive any termination or discontinuation of the Service.</p><h2><strong>23. Governing Law; Venue</strong></h2><p>These Terms, and any dispute arising out of or relating to these Terms or the Service, are governed by the laws of the State of New York, without regard to its conflict-of-law rules or principles that would cause the application of the laws of another jurisdiction. Any such dispute will be resolved exclusively in the state or federal courts located in Westchester County, New York, and you consent to personal jurisdiction and venue in those courts.</p><h2><strong>24. Changes to These Terms</strong></h2><p>We may revise these Terms as described in the introduction above. The version posted on the Service at the time of your use governs that use.</p><h2><strong>25. General</strong></h2><p>These Terms, together with the Privacy Policy, are the entire agreement between you and us regarding the Service and supersede any prior understandings on that subject. If any provision of these Terms is held unenforceable, that provision will be enforced to the maximum extent permissible and the remaining provisions will remain in full force. Our failure to enforce any provision is not a waiver of it. You may not assign these Terms; we may assign them in connection with a transfer of the Service, provided the assignee assumes our obligations under them. Section headings are for convenience only.</p><h2><strong>26. Contact</strong></h2><p>Questions about these Terms may be directed to beheardspecialeducation@gmail.com</p>`;
 
-function DisclaimerPage() {
-  return (
-    <div className="page fade-in">
-      <div className="eyebrow">Legal</div>
-      <h1 className="display" style={{ fontSize: 42 }}>Disclaimer &amp; Terms of Use.</h1>
-      <p className="lede">
-        Last updated: [DATE] · This is placeholder language pending final review.
-      </p>
-      <div className="card">
-        <h3 className="sub">Not legal advice</h3>
-        <p className="muted">
-          Be Heard is a free informational and document-preparation tool for New
-          York parents navigating special education disputes. It is not a law
-          firm, it does not practice law, and nothing it provides constitutes
-          legal advice. The information, documents, and guidance offered through
-          this site are general in nature and may not apply to your specific
-          circumstances.
-        </p>
-      </div>
-      <div className="card">
-        <h3 className="sub">No attorney-client relationship</h3>
-        <p className="muted">
-          Using this site does not create an attorney-client relationship
-          between you and Be Heard, its creator, or anyone associated with it.
-          Communications you have with the tool are not protected by
-          attorney-client privilege.
-        </p>
-      </div>
-      <div className="card">
-        <h3 className="sub">Documents are starting points</h3>
-        <p className="muted">
-          Any letters, requests, or complaint drafts this tool produces are
-          templates personalized to the information you provide. They are
-          starting points, not finished legal filings. You are responsible for
-          reviewing every document for accuracy and completeness, editing it as
-          needed, and deciding whether and when to send or file it. You should
-          verify all facts, dates, deadlines, and legal requirements
-          independently before acting.
-        </p>
-      </div>
-      <div className="card">
-        <h3 className="sub">No guarantee of outcome</h3>
-        <p className="muted">
-          Be Heard does not guarantee any particular result. Special education
-          disputes are fact-specific and their outcomes depend on many factors
-          outside this tool's control. Nothing here should be understood as a
-          prediction or assurance about how your matter will be resolved.
-        </p>
-      </div>
-      <div className="card">
-        <h3 className="sub">Deadlines and time limits</h3>
-        <p className="muted">
-          Special education and due process matters are subject to strict legal
-          deadlines and statutes of limitations. While the tool may flag
-          time-sensitive issues, it cannot guarantee that every applicable
-          deadline will be identified. You are responsible for confirming and
-          meeting all deadlines that apply to your situation.
-        </p>
-      </div>
-      <div className="card">
-        <h3 className="sub">When to consult an attorney</h3>
-        <p className="muted">
-          This tool is designed for parents pursuing matters on their own, and
-          for many everyday disputes self-representation is workable. However, it
-          is not a substitute for a licensed attorney. For higher-stakes matters
-          — including significant tuition reimbursement, disciplinary or
-          manifestation-determination proceedings, or any matter that escalates
-          to a hearing where the school district is represented by counsel — you
-          should strongly consider consulting a qualified special education
-          attorney or trained advocate.
-        </p>
-      </div>
-      <div className="card">
-        <h3 className="sub">Jurisdiction</h3>
-        <p className="muted">
-          Be Heard addresses special education procedures under federal law
-          (IDEA) and New York State law and regulations. It is intended for use
-          by parents of students in New York. The information provided may not be
-          accurate or applicable in other states.
-        </p>
-      </div>
-      <div className="card">
-        <h3 className="sub">Not affiliated with any government agency or school district</h3>
-        <p className="muted">
-          Be Heard is an independent tool. It is not affiliated with, endorsed
-          by, or connected to the New York State Education Department, any school
-          district, or any government agency.
-        </p>
-      </div>
-      <div className="card">
-        <h3 className="sub">AI-generated content</h3>
-        <p className="muted">
-          This tool uses artificial intelligence to generate responses and
-          documents. AI can make mistakes, misstate facts, or produce incomplete
-          information. Always review AI-generated content critically and verify
-          anything you intend to rely on.
-        </p>
-      </div>
-      <div className="card">
-        <h3 className="sub">No warranty</h3>
-        <p className="muted">
-          This site and its content are provided "as is," without warranties of
-          any kind, express or implied, including but not limited to accuracy,
-          completeness, fitness for a particular purpose, or non-infringement. To
-          the fullest extent permitted by law, Be Heard and those associated with
-          it disclaim all liability for any loss or harm arising from your use
-          of, or reliance on, this site or the documents it produces.
-        </p>
-      </div>
-      <div className="card">
-        <h3 className="sub">Your use of this site</h3>
-        <p className="muted">
-          By using Be Heard, you acknowledge that you have read and understood
-          this disclaimer and agree to use the tool accordingly.
-        </p>
-      </div>
-    </div>
-  );
+const PRIVACY_HTML = `<h1><strong>Be Heard — Privacy Policy</strong></h1><p>Last updated: <strong>July 6, 2026</strong></p><p>This Privacy Policy describes how Be Heard (“we,” “us,” “our”) collects, uses, stores, and shares information when you use the Be Heard website and services (the “Service”). Capitalized terms not defined here have the meanings given in our Terms of Use. By using the Service, you agree to this Privacy Policy.</p><h2><strong>1. Our Approach</strong></h2><p>Be Heard is designed to minimize the information we hold. By default, your conversation and documents live in your own browser — not on our servers. We collect only what is needed to operate the Service. We do not sell personal information, we do not use it for advertising, and conversations processed through the Service are not used to train AI models.</p><h2><strong>2. Information We Collect</strong></h2><p><strong>Information you provide in the chat.</strong> When you use the chat, you provide descriptions of your situation, which may include personal information about you and your child — such as names, school and district information, and educational and disability-related information. What you share is your choice; the Service works if you identify yourself and your child by first name or initials only.</p><p><strong>Account information.</strong> If you choose to create an account, we collect your email address.</p><p><strong>Saved matter information (account users only).</strong> If you create an account and save your work, we store your email address and the working materials needed to restore your session, a structured summary of your situation captured from your conversation, the drafts of materials such as letters and complaints that are generated by the system, and a high level summary of materials such as IEPs and clinical and other evaluations that you upload.</p><p><strong>Technical information.</strong> Our hosting and infrastructure providers automatically log basic technical data — such as IP address, browser type, and access times — as part of operating and securing the Service. We do not use third-party advertising trackers. </p><p><strong>Local storage.</strong> The Service uses your browser’s local storage to keep your conversation and drafts on your own device.</p><h2><strong>3. How We Use Information</strong></h2><p>We use the information described above to operate the Service: to generate chat responses and documents, to save and restore your work if you have an account, to send account login links and service notices, to maintain and secure the Service, to respond to inquiries you send us, and to comply with legal obligations. We do not use your information for marketing, and we do not sell it.</p><h2><strong>4. How We Share Information</strong></h2><p><strong>AI processing (Anthropic).</strong> Your chat messages are transmitted to Anthropic’s Claude API to generate responses. Anthropic processes this data under its commercial terms and does not use API data to train its models. Anthropic’s data-handling practices are described in its own policies.</p><p><strong>Infrastructure providers.</strong> We use third-party providers for hosting, authentication, and (for account users) database storage. These providers process information on our behalf in order to run the Service and are not authorized to use it for their own purposes.</p><p><strong>Legal requirements.</strong> We may disclose information if required by law — for example, in response to a subpoena or lawful request by a public authority — or when we believe in good faith that disclosure is necessary to protect our rights or the safety of any person, or to investigate fraud or abuse of the Service.</p><p><strong>Successor operation.</strong> If the Service is ever transferred to a successor operator (for example, through a reorganization or transfer of the project), saved information may be transferred with it, subject to this Privacy Policy. We will provide notice of any material change in how your information is handled.</p><p>We do not sell or rent personal information, and we do not share it for cross-context behavioral advertising.</p><h2><strong>5. Where Your Information Lives; Retention and Deletion</strong></h2><p><strong>Without an account:</strong> your conversation and drafts exist in your browser’s local storage on your own device. Clearing your browser data, or using the “Start fresh” feature, removes them. We hold nothing to delete on our side.</p><p><strong>With an account:</strong> your saved information is stored with our database provider for as long as needed to provide the Service to you.</p><p><strong>Chat processing:</strong> messages sent to the AI provider are processed to generate a response and handled under that provider’s retention policies.</p><h2><strong>6. Children’s Privacy</strong></h2><p>The Service is intended for adults and is not directed to children. We do not knowingly collect information directly from children. Information about children that appears in the Service is provided by their parents or legal guardians for the purpose of preparing advocacy materials. If you believe a child has provided information directly to us, please contact us at <strong>beheardspecialeducation@gmail.com</strong> and we will delete it.</p><h2><strong>7. Security</strong></h2><p>We use reasonable administrative and technical safeguards, and reputable infrastructure providers, to protect the information we handle. No method of transmission or storage is completely secure, however, and we cannot guarantee absolute security. You can reduce what is at stake by sharing only what is needed — including by using first names or initials in the chat, as described in the Terms of Use.</p><h2><strong>8. Your Choices and Rights</strong></h2><p>You can use the core Service without creating an account. You can remove locally stored information at any time by clearing your browser data or using the “Start fresh” feature. If you have an account, you can review your saved information from your account page. Depending on where you live, you may have additional rights under applicable law regarding access to, correction of, or deletion of your personal information; we will honor valid requests, which you may send to <strong>beheardspecialeducation@gmail.com.</strong></p><h2><strong>9. Changes to This Policy</strong></h2><p>We may update this Privacy Policy from time to time. The “Last updated” date above reflects the most recent version. If we make material changes, we will take reasonable steps to bring them to your attention, such as posting a notice on the Service.</p><h2><strong>10. Contact</strong></h2><p>Questions about this Privacy Policy, or requests regarding your information, may be directed to <strong>beheardspecialeducation@gmail.com</strong></p>`;
+
+// Deep-linkable: #/terms/section-18 scrolls to Section 18 (assent link, emails).
+function TermsPage({ anchor }) {
+  useEffect(() => {
+    if (!anchor) return;
+    const el = document.getElementById(anchor);
+    if (el) setTimeout(() => el.scrollIntoView({ block: "start" }), 0);
+  }, [anchor]);
+  return <div className="legal-doc fade-in" dangerouslySetInnerHTML={{ __html: TERMS_HTML }} />;
+}
+
+function PrivacyPage() {
+  return <div className="legal-doc fade-in" dangerouslySetInnerHTML={{ __html: PRIVACY_HTML }} />;
 }
 
 // ============================================================================
@@ -7585,16 +7485,20 @@ function LoginPage() {
           />
         </div>
 
-        {/* CONSENT GATE — PLACEHOLDER wording. The owner supplies the real consent
-            text before launch; going live on placeholder text is a launch gate
-            (see docs/accounts-persistence.md). */}
+        {/* CONSENT GATE (clickwrap) — required, unchecked by default; gates canSend.
+            Assent is recorded in user_metadata at account creation (see send()). */}
         <label style={{ display: "flex", gap: 10, alignItems: "flex-start", margin: "4px 0 16px", fontSize: 14, lineHeight: 1.5, cursor: "pointer" }}>
           <input type="checkbox" checked={agreed} onChange={(e) => setAgreed(e.target.checked)} style={{ marginTop: 3 }} />
           <span>
-            <strong>[PLACEHOLDER — final consent wording to be supplied before launch.]</strong>{" "}
-            By creating an account I understand this tool will store my case information — what I
-            tell it, documents it generates, and a short summary of documents I review — so I
-            can return to it later, and I agree to the terms of use and privacy policy.
+            I have read and agree to the{" "}
+            <a href="#/terms" target="_blank" rel="noopener" onClick={(e) => e.stopPropagation()}>Terms of Use</a>{" "}
+            and{" "}
+            <a href="#/privacy" target="_blank" rel="noopener" onClick={(e) => e.stopPropagation()}>Privacy Policy</a>. I also
+            acknowledge and agree to the{" "}
+            <a href="#/terms/section-18" target="_blank" rel="noopener" onClick={(e) => e.stopPropagation()}>Additional Terms and Limitations for Account Users (Section 18 of the Terms of Use)</a>,
+            which describe what saving to an account stores — a summary of my situation and my
+            drafts, not my full chat or uploaded documents — and the risks of storing that
+            information.
           </span>
         </label>
 
@@ -7961,7 +7865,14 @@ function App() {
   if (isAuthCallback) {
     page = <AuthCallback />;
   } else {
-  switch (route) {
+  // /terms and /terms/<anchor> both render TermsPage; the anchor deep-links a section.
+  let termsAnchor = null;
+  let routeKey = route;
+  if (route === "/terms" || route.indexOf("/terms/") === 0) {
+    termsAnchor = route.indexOf("/terms/") === 0 ? route.slice("/terms/".length) : null;
+    routeKey = "/terms";
+  }
+  switch (routeKey) {
     case "/": page = <HomePage />; break;
     case "/start": page = <StartPage />; break;
     case "/login": page = <LoginPage />; break;
@@ -7971,8 +7882,9 @@ function App() {
     case "/resources": page = <ResourcesPage />; break;
     case "/about": page = <AboutPage />; break;
     case "/contact": page = <ContactPage />; break;
+    case "/terms": page = <TermsPage anchor={termsAnchor} />; break;
     case "/privacy": page = <PrivacyPage />; break;
-    case "/disclaimer": page = <DisclaimerPage />; break;
+    case "/disclaimer": page = <Redirect to="/terms" />; break;
     case "/account": page = <AccountPage />; break;
     default: page = <NotFoundPage />;
   }
