@@ -1732,9 +1732,9 @@ const HERO_DEMO_BEATS = [
     reply: "That's worth pushing on. First question: is he making progress toward his IEP goals, or…" },
   { user: "I asked the district to evaluate my daughter in September and nothing's happened.",
     reply: "That's time-sensitive — districts have deadlines to respond to evaluation requests. Let's pin down where your request stands…" },
-  { user: "I'm thinking of moving her to a private school. Can the district have to pay for it?",
+  { user: "My daughter has dyslexia and has fallen significantly behind — I'm thinking of moving her to a private school. Can the district pay for it?",
     reply: "Sometimes, yes — it's called tuition reimbursement, and notice and timing matter a lot. Before anything else…" },
-  { user: "Can you draft the due process complaint for me?", doc: true },
+  { user: "My son has an IEP but the district just isn't delivering the services. I've been pressing them on it and they're ignoring me. Can you draft a due process complaint for me?", doc: true },
 ];
 // Skeleton for the beat-4 document mock. `h` = faint section-header bar.
 const HERO_DEMO_DOC = [
@@ -1750,9 +1750,12 @@ const HERO_DEMO_GREETING =
   "\n\n" +
   "To start — how old is your child, and what's been worrying you?";
 // Timing (ms) — tune pace here. ~30s loop across the four scenario resets.
+// `type` (per-char) is the dominant cost: the four user lines total ~480
+// chars, so it's set brisk to keep the loop near 30s despite the longer beat
+// 3/4 fact patterns; holds are trimmed to match.
 const CD = {
-  fresh: 480, focus: 340, type: 40, sendPause: 320, afterSend: 480,
-  typing: 900, chunk: 150, docLine: 300, beatHold: 1400, fade: 420,
+  fresh: 420, focus: 300, type: 22, sendPause: 300, afterSend: 420,
+  typing: 800, chunk: 130, docLine: 280, beatHold: 1150, fade: 400,
   cursorSettle: 320, cursorMove: 950, cursorClick: 300,
 };
 
