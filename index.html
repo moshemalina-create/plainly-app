@@ -7851,8 +7851,11 @@ function LoginPage() {
         <h1 className="display" style={{ fontSize: 38 }}>Your sign-in link is on its way.</h1>
         <p className="lede">
           We sent a one-time link to <strong>{email.trim()}</strong>. Open it to finish
-          signing in — on this device or any other. If it isn't there in a few minutes,
-          check spam, or send another.
+          signing in — on this device or any other.
+        </p>
+        <p className="soft">
+          Don't see it after a minute or two? Check your spam or junk folder — the link
+          comes from Be Heard (login@beheard-specialeducation.com).
         </p>
         <button className="btn btn-ghost" onClick={() => setStatus("idle")}>Use a different email</button>
       </div>
