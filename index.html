@@ -309,6 +309,40 @@ body, html, #root {
 }
 .header-cta:hover { background: var(--action-deep); }
 
+/* Language toggle — a clearly tappable bordered control, distinct from the nav
+   links and from the filled primary CTA. Standalone flex item, never wraps. */
+.lang-toggle {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 6px 12px;
+  font-size: 14px;
+  font-weight: 500;
+  font-family: inherit;
+  color: var(--ink);
+  background: transparent;
+  cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
+  min-height: 36px;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+.lang-toggle:hover { border-color: var(--ink-soft); background: rgba(0,0,0,0.03); }
+.lang-toggle:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* The secondary account/login text link in the header. Hidden at ≤500px so the
+   language toggle (higher priority) always fits; the auth-aware footer link is
+   the mobile login path there (see Footer). */
+.header-auth-link {
+  margin-right: 14px;
+  font-size: 14px;
+  color: var(--ink-soft);
+  text-decoration: none;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
 /* Mid widths: free space so the (now non-wrapping) nav links never crowd or
    overflow — drop the decorative brand tag and tighten gaps. */
 @media (max-width: 980px) {
@@ -320,6 +354,16 @@ body, html, #root {
 @media (max-width: 720px) {
   .site-nav { display: none; }
   .site-header-inner { padding: 14px 18px; gap: 12px; }
+}
+
+/* ≤500px: the language toggle has priority over other secondary header items.
+   Hide the account/login text link (reachable via the footer) and tighten the
+   row so brand · toggle · Start CTA sit on one line with no overflow. */
+@media (max-width: 500px) {
+  .header-auth-link { display: none; }
+  .site-header-inner { gap: 10px; }
+  .lang-toggle { padding: 6px 10px; }
+  .header-cta { padding: 8px 14px; }
 }
 
 /* ------- Page shell ------- */
@@ -1615,26 +1659,271 @@ function go(path) {
 }
 
 // ============================================================================
+// I18N — Spanish translation (Phase 1: infrastructure + toggle + homepage)
+// ----------------------------------------------------------------------------
+// Single-file, no new deps. `TRANSLATIONS` is the source-of-truth string table
+// (mirrored in docs/spanish-translation.md §6). `LangProvider` holds `lang`
+// (persisted to localStorage under `beheard:lang` — NOT `plainly:` which two
+// cleanup routines wipe), reflects it onto <html lang>, and exposes `t(key)`.
+// Toggling re-renders every consumer with no reload.
+//
+// Terms of art follow NYSED's official Spanish Procedural Safeguards Notice
+// (May 2024): "queja de debido proceso", "reunión de resolución" (NOT "sesión"),
+// "audiencia imparcial", "Programa de Educación Individualizada (IEP)",
+// "comité de educación especial (CSE)", "colocación", etc. "10-day notice" is
+// rendered "aviso por escrito de 10 días" — the one term still pending verbatim
+// NYSED confirmation (see docs §7).
+// ============================================================================
+
+const TRANSLATIONS = {
+  // Header / nav
+  "header.tag": { en: "Free · NY · Special education", es: "Gratis · NY · Educación especial" },
+  "nav.how": { en: "Filing a Complaint", es: "Cómo presentar una queja" },
+  "nav.who": { en: "Is this for me?", es: "¿Es esto para mí?" },
+  "nav.faq": { en: "FAQ", es: "Preguntas frecuentes" },
+  "nav.resources": { en: "Resources", es: "Recursos" },
+  "nav.about": { en: "About", es: "Acerca de" },
+  "header.login": { en: "Log in", es: "Iniciar sesión" },
+  "header.account": { en: "Account", es: "Mi cuenta" },
+  "header.cta": { en: "Start →", es: "Comenzar →" },
+
+  // Hero
+  "hero.eyebrow": { en: "Free · For New York parents", es: "Gratis · Para padres de Nueva York" },
+  "hero.h1.line1": { en: "Your child's school program isn't working.", es: "El programa escolar de su hijo no está funcionando." },
+  "hero.h1.line2": { en: "Let's fix it.", es: "Vamos a arreglarlo." },
+  "hero.lede": {
+    en: "This is a free tool that helps you push back when your child's IEP or special education decision isn't right — without a lawyer, without legalese, and without giving up. Tell us what's going on. We'll help you figure out what to do next.",
+    es: "Esta es una herramienta gratuita que le ayuda a defender a su hijo cuando su IEP o una decisión de educación especial no es correcta — sin abogados, sin lenguaje legal complicado y sin darse por vencido. Cuéntenos qué está pasando. Le ayudaremos a decidir qué hacer a continuación.",
+  },
+  "hero.cta.primary": { en: "Tell us what's going on", es: "Cuéntenos qué está pasando" },
+  "hero.cta.secondary": { en: "Or see how filing works", es: "O vea cómo funciona presentar una queja" },
+  "hero.stat1": { en: "NY children receiving special education services", es: "niños en NY que reciben servicios de educación especial" },
+  "hero.stat2": { en: "of NYC public school students have an IEP", es: "de los estudiantes de escuelas públicas de NYC tienen un IEP" },
+  "hero.stat3": { en: "cost to file a due process complaint", es: "cuesta presentar una queja de debido proceso" },
+
+  // "You have the right to push back"
+  "rights.h2": { en: "You have the right to push back.", es: "Usted tiene derecho a reclamar." },
+  "rights.p1": {
+    en: "Federal law — IDEA, the Individuals with Disabilities Education Act — gives every parent in New York the right to challenge a special education decision they believe is wrong. You don't need a lawyer. You don't need permission. You don't need to be an expert. You just need to put your concerns on the record in a specific way, and the district has to respond.",
+    es: "La ley federal — IDEA, la Ley de Educación para Personas con Discapacidades — le da a cada padre en Nueva York el derecho de cuestionar una decisión de educación especial que considere equivocada. No necesita un abogado. No necesita permiso. No necesita ser un experto. Solo necesita dejar constancia de sus inquietudes de una manera específica, y el distrito tiene que responder.",
+  },
+  "rights.p2": {
+    en: "Most parents who have viable claims never exercise this right — because the process looks intimidating, lawyers are expensive, and nobody has explained what filing actually involves. That's the gap we're trying to close.",
+    es: "La mayoría de los padres que tienen reclamos válidos nunca ejercen este derecho — porque el proceso parece intimidante, los abogados son caros y nadie les ha explicado lo que realmente implica presentar una queja. Esa es la brecha que estamos tratando de cerrar.",
+  },
+  "rights.c1.h": { en: "The tool is free", es: "La herramienta es gratuita" },
+  "rights.c1.p": {
+    en: "Always. There's no fee to use this tool, no premium tier, and no catch. We built this because parents shouldn't have to choose between their child's education and their savings account.",
+    es: "Siempre. No hay ningún costo por usar esta herramienta, no hay versión premium y no hay trucos. La creamos porque ningún padre debería tener que elegir entre la educación de su hijo y sus ahorros.",
+  },
+  "rights.c2.h": { en: "Filing is free too", es: "Presentar la queja también es gratis" },
+  "rights.c2.p": {
+    en: "There's no fee to file a due process complaint. The district can't recover legal fees from you unless your filing is frivolous (a high bar). The downside of filing is genuinely low.",
+    es: "No hay ningún costo por presentar una queja de debido proceso. El distrito no puede cobrarle honorarios legales a menos que su queja sea frívola (algo muy difícil de demostrar). El riesgo de presentarla es realmente bajo.",
+  },
+  "rights.c3.h": { en: "You don't need a lawyer", es: "No necesita un abogado" },
+  "rights.c3.p": {
+    en: "Many parents handle these cases pro se and most settle at the resolution session — an informal meeting before any hearing. The system is designed to work for parents who represent themselves.",
+    es: "Muchos padres manejan estos casos sin un abogado y la mayoría se resuelven en la reunión de resolución — una reunión informal antes de cualquier audiencia. El sistema está diseñado para funcionar para los padres que se representan a sí mismos.",
+  },
+
+  // "Common situations we help with"
+  "situations.h2": { en: "Common situations we help with", es: "Situaciones comunes en las que ayudamos" },
+  "situations.sub": {
+    en: "Tap any of these to see what it looks like in our tool. You don't have to fit neatly into a category — most parents don't.",
+    es: "Toque cualquiera de estas para ver cómo se ve en nuestra herramienta. No tiene que encajar perfectamente en una categoría — la mayoría de los padres no lo hacen.",
+  },
+  "situations.tileArrow": { en: "See how →", es: "Vea cómo →" },
+  "situations.t1.h": { en: "The services aren't enough", es: "Los servicios no son suficientes" },
+  "situations.t1.p": {
+    en: "Your child needs more speech, OT, reading help, or 1:1 support than the IEP provides — and the district keeps saying no.",
+    es: "Su hijo necesita más terapia del habla, terapia ocupacional, apoyo de lectura o ayuda individual (1:1) de la que ofrece el IEP — y el distrito sigue diciendo que no.",
+  },
+  "situations.t2.h": { en: "Services are missing", es: "Faltan servicios" },
+  "situations.t2.p": {
+    en: "The IEP says your child gets services, but they're being skipped, shortened, or quietly dropped.",
+    es: "El IEP dice que su hijo recibe servicios, pero se los están saltando, acortando o eliminando sin avisar.",
+  },
+  "situations.t3.h": { en: "You're considering private school", es: "Está considerando una escuela privada" },
+  "situations.t3.p": {
+    en: "The public program isn't working and you're thinking about unilateral private placement — with the district paying.",
+    es: "El programa público no está funcionando y está pensando en una colocación privada unilateral — con el distrito pagando.",
+  },
+  "situations.t4.h": { en: "The evaluation feels wrong", es: "La evaluación no parece correcta" },
+  "situations.t4.p": {
+    en: "The district's evaluation missed things, or they're refusing to evaluate — and you can't move forward without one.",
+    es: "La evaluación del distrito pasó cosas por alto, o se niegan a evaluar — y usted no puede avanzar sin una.",
+  },
+  "situations.t5.h": { en: "The placement is wrong", es: "La colocación no es la adecuada" },
+  "situations.t5.p": {
+    en: "The class size, ratio, or restrictiveness doesn't match what your child actually needs.",
+    es: "El tamaño de la clase, la proporción o el nivel de restricción no corresponde a lo que su hijo realmente necesita.",
+  },
+  "situations.t6.h": { en: "The district has gone quiet", es: "El distrito no responde" },
+  "situations.t6.p": {
+    en: "You've raised concerns at meetings or in emails and gotten no meaningful response.",
+    es: "Ha planteado sus inquietudes en reuniones o por correo electrónico y no ha recibido una respuesta real.",
+  },
+
+  // "How this works"
+  "how.h2": { en: "How this works", es: "Cómo funciona esto" },
+  "how.intro": {
+    en: "Here's what actually happens when you start — no forms, no jargon, no cost.",
+    es: "Esto es lo que realmente sucede cuando empieza — sin formularios, sin jerga, sin costo.",
+  },
+  "how.s1.h": { en: "Tell us what's going on", es: "Cuéntenos qué está pasando" },
+  "how.s1.p": {
+    en: "Open the chat. Describe your situation in your own words — no forms, no jargon. We'll ask follow-up questions, identify what kind of claim this looks like, and flag time-sensitive issues right away.",
+    es: "Abra el chat. Describa su situación con sus propias palabras — sin formularios, sin jerga. Le haremos preguntas de seguimiento, identificaremos qué tipo de reclamo parece ser este y le señalaremos de inmediato los asuntos urgentes.",
+  },
+  "how.s1.alt": { en: "A child working through difficult schoolwork", es: "Un niño esforzándose con una tarea escolar difícil" },
+  "how.s2.h": { en: "Get something useful in your hands", es: "Obtenga algo útil en sus manos" },
+  "how.s2.p": {
+    en: "Depending on your situation, that might be a 10-day notice letter, a written follow-up to the CSE chair, a list of documents to gather, or a draft of a full due process complaint. You can edit, download, and send anything we generate.",
+    es: "Según su situación, eso podría ser un aviso por escrito de 10 días, un seguimiento por escrito al presidente del comité de educación especial (CSE), una lista de documentos para reunir, o un borrador de una queja de debido proceso completa. Puede editar, descargar y enviar todo lo que generemos.",
+  },
+  "how.s2.alt": {
+    en: "A parent at a desk holding a printed due process complaint, with an IEP binder, a next-steps checklist, and a laptop",
+    es: "Un padre en un escritorio sosteniendo una queja de debido proceso impresa, con una carpeta del IEP, una lista de próximos pasos y una computadora portátil",
+  },
+  "how.s3.h": { en: "Decide what to do", es: "Decida qué hacer" },
+  "how.s3.p": {
+    en: "We'll explain what filing involves, what to expect, and what your options are — including alternatives like mediation. Most parents who file at all settle their case at the resolution session, without ever seeing a hearing room. You're not signing up for a lawsuit; you're putting your situation on the record.",
+    es: "Le explicaremos lo que implica presentar la queja, qué esperar y cuáles son sus opciones — incluyendo alternativas como la mediación. La mayoría de los padres que presentan una queja resuelven su caso en la reunión de resolución, sin llegar nunca a una sala de audiencias. No se está inscribiendo en una demanda; está dejando constancia de su situación.",
+  },
+  "how.s3.alt": {
+    en: "Two parents discussing their options with an advisor at a table, beside a checklist of options: resolution session, mediation, agreement, and hearing",
+    es: "Dos padres conversando sobre sus opciones con un asesor en una mesa, junto a una lista de opciones: reunión de resolución, mediación, acuerdo y audiencia",
+  },
+
+  // CTA strip + "You Can Do Something About It"
+  "cta.h3": { en: "Ready to start?", es: "¿Listo para comenzar?" },
+  "cta.p": {
+    en: "The conversation takes about ten minutes, costs nothing, and doesn't commit you to anything. You can stop, save, and come back any time.",
+    es: "La conversación toma unos diez minutos, no cuesta nada y no lo compromete a nada. Puede detenerse, guardar y regresar en cualquier momento.",
+  },
+  "cta.button": { en: "Start the conversation", es: "Comenzar la conversación" },
+  "can.h2": { en: "You Can Do Something About It", es: "Usted Puede Hacer Algo al Respecto" },
+  "can.p1.pre": {
+    en: "The thing we hear most from parents — both before and after they finally file — is some version of:",
+    es: "Lo que más escuchamos de los padres — tanto antes como después de finalmente presentar la queja — es alguna versión de:",
+  },
+  "can.p1.em": { en: "I didn't know I could do this.", es: "No sabía que podía hacer esto." },
+  "can.p2": {
+    en: "You can. Filing a due process complaint isn't a lawsuit. There's no fee. The district can't recover legal fees from you unless the filing is frivolous (a high bar). The worst plausible outcome is that you don't get what you asked for and you're back where you started — only with a much clearer record. The likeliest outcome, especially in clear-cut cases, is that the resolution session itself produces some kind of accommodation, because the district doesn't want to litigate.",
+    es: "Sí puede. Presentar una queja de debido proceso no es una demanda. No hay ningún costo. El distrito no puede cobrarle honorarios legales a menos que la queja sea frívola (algo muy difícil de demostrar). El peor resultado posible es que no consiga lo que pidió y quede donde empezó — solo que con un registro mucho más claro. El resultado más probable, especialmente en casos claros, es que la propia reunión de resolución produzca algún tipo de acomodación, porque el distrito no quiere litigar.",
+  },
+  "can.p3": {
+    en: "We built this tool because we think the gap between \"I have a real problem\" and \"I can do something about it\" is too wide. The tool is free, and it always will be. We're trying to close that gap.",
+    es: "Creamos esta herramienta porque pensamos que la brecha entre \"tengo un problema real\" y \"puedo hacer algo al respecto\" es demasiado grande. La herramienta es gratuita, y siempre lo será. Estamos tratando de cerrar esa brecha.",
+  },
+
+  // Footer
+  "footer.tagline": {
+    en: "A free, guided tool for New York parents who want to challenge an IEP or special education decision — in plain English, without a lawyer.",
+    es: "Una herramienta gratuita y guiada para padres de Nueva York que quieren cuestionar un IEP o una decisión de educación especial — en lenguaje sencillo, sin un abogado.",
+  },
+  "footer.h.help": { en: "Get help", es: "Obtenga ayuda" },
+  "footer.h.learn": { en: "Learn", es: "Aprenda" },
+  "footer.h.legal": { en: "Legal", es: "Legal" },
+  "footer.link.start": { en: "Start a conversation", es: "Iniciar una conversación" },
+  "footer.link.account": { en: "My account", es: "Mi cuenta" },
+  "footer.link.login": { en: "Log in", es: "Iniciar sesión" },
+  "footer.link.faq": { en: "FAQ", es: "Preguntas frecuentes" },
+  "footer.link.resources": { en: "Resources", es: "Recursos" },
+  "footer.link.about": { en: "About", es: "Acerca de" },
+  "footer.link.terms": { en: "Terms of Use", es: "Términos de uso" },
+  "footer.link.privacy": { en: "Privacy", es: "Privacidad" },
+  "footer.link.contact": { en: "Contact", es: "Contacto" },
+  "footer.agree.pre": { en: "By using Be Heard you agree to our", es: "Al usar Be Heard, usted acepta nuestros" },
+  "footer.agree.and": { en: "and", es: "y" },
+  "footer.agree.terms": { en: "Terms of Use", es: "Términos de uso" },
+  "footer.agree.privacy": { en: "Privacy Policy", es: "Política de privacidad" },
+  "footer.disclaimer": {
+    en: "This tool is not a law firm and does not provide legal advice. The drafts and guidance produced by this tool are templates and informational content based on what you tell it — they do not create an attorney-client relationship. For complex matters, particularly involving discipline, expulsion, or significant tuition reimbursement, consider consulting a licensed special education attorney.",
+    es: "Esta herramienta no es un bufete de abogados y no brinda asesoría legal. Los borradores y la orientación que produce esta herramienta son plantillas y contenido informativo basados en lo que usted le cuenta — no crean una relación abogado-cliente. Para asuntos complejos, particularmente los que involucran disciplina, expulsión o un reembolso de matrícula significativo, considere consultar a un abogado con licencia en educación especial.",
+  },
+
+  // Hero chat demo (structured beats live in HERO_DEMO_BEATS_* below)
+  "demo.doc.title": { en: "Due Process Complaint", es: "Queja de debido proceso" },
+  "demo.input.placeholder": { en: "Ask about your child's situation…", es: "Pregunte sobre la situación de su hijo…" },
+};
+
+const LangContext = React.createContext(null);
+
+function LangProvider({ children }) {
+  const [lang, setLangState] = useState(() => {
+    try { return localStorage.getItem("beheard:lang") === "es" ? "es" : "en"; }
+    catch (e) { return "en"; }
+  });
+  // Reflect the restored/selected language onto <html lang> (a11y + correctness).
+  useEffect(() => {
+    if (typeof document !== "undefined") document.documentElement.lang = lang;
+  }, [lang]);
+  const setLang = (next) => {
+    setLangState(next);
+    try { localStorage.setItem("beheard:lang", next); } catch (e) {}
+  };
+  const t = (key) => {
+    const row = TRANSLATIONS[key];
+    if (!row) return key;                  // missing key → visible, not a crash
+    return row[lang] || row.en || key;     // missing es → graceful English fallback
+  };
+  return (
+    <LangContext.Provider value={{ lang, setLang, t }}>
+      {children}
+    </LangContext.Provider>
+  );
+}
+
+function useLang() {
+  return React.useContext(LangContext) || { lang: "en", setLang: () => {}, t: (k) => (TRANSLATIONS[k] ? TRANSLATIONS[k].en : k) };
+}
+
+// The language toggle: shows the language you'd switch TO, in that language, so a
+// Spanish speaker on the English page can find it ("Español"). Standalone,
+// flex-shrink:0, nowrap — outside .site-nav — so it stays visible at every width
+// and can't reintroduce the nav-wrap bug.
+function LangToggle() {
+  const { lang, setLang } = useLang();
+  const next = lang === "en" ? "es" : "en";
+  const label = lang === "en" ? "Español" : "English";
+  const aria = lang === "en" ? "Cambiar idioma a español" : "Switch language to English";
+  return (
+    <button
+      type="button"
+      className="lang-toggle"
+      lang={next}
+      onClick={() => setLang(next)}
+      aria-label={aria}
+    >
+      {label}
+    </button>
+  );
+}
+
+// ============================================================================
 // HEADER + FOOTER
 // ============================================================================
 
 const NAV_ITEMS = [
-  { path: "/how", label: "Filing a Complaint" },
-  { path: "/who", label: "Is this for me?" },
-  { path: "/faq", label: "FAQ" },
-  { path: "/resources", label: "Resources" },
-  { path: "/about", label: "About" },
+  { path: "/how", key: "nav.how" },
+  { path: "/who", key: "nav.who" },
+  { path: "/faq", key: "nav.faq" },
+  { path: "/resources", key: "nav.resources" },
+  { path: "/about", key: "nav.about" },
 ];
 
 function Header({ route }) {
   const { user } = useAuth();
+  const { t } = useLang();
   return (
     <header className="site-header">
       <div className="site-header-inner">
         <a href="#/" className="brand-link" onClick={(e) => { e.preventDefault(); go("/"); }} aria-label="Be Heard — home">
           <div>
             <span className="bh-wordmark bh-wordmark--header">Be <span className="bh-heard">Heard</span></span>
-            <span className="brand-mark-tag">Free · NY · Special education</span>
+            <span className="brand-mark-tag">{t("header.tag")}</span>
           </div>
         </a>
         <nav className="site-nav">
@@ -1645,17 +1934,18 @@ function Header({ route }) {
               onClick={(e) => { e.preventDefault(); go(item.path); }}
               className={route === item.path ? "active" : ""}
             >
-              {item.label}
+              {t(item.key)}
             </a>
           ))}
         </nav>
+        <LangToggle />
         {authReady && (
           <a
             href={user ? "#/account" : "#/login"}
+            className="header-auth-link"
             onClick={(e) => { e.preventDefault(); go(user ? "/account" : "/login"); }}
-            style={{ marginRight: 14, fontSize: 14, color: "var(--ink-soft)", textDecoration: "none", whiteSpace: "nowrap" }}
           >
-            {user ? "Account" : "Log in"}
+            {user ? t("header.account") : t("header.login")}
           </a>
         )}
         <a
@@ -1663,7 +1953,7 @@ function Header({ route }) {
           className="header-cta"
           onClick={(e) => { e.preventDefault(); go("/start"); }}
         >
-          Start →
+          {t("header.cta")}
         </a>
       </div>
     </header>
@@ -1671,6 +1961,8 @@ function Header({ route }) {
 }
 
 function Footer() {
+  const { t } = useLang();
+  const { user } = useAuth();
   return (
     <footer className="site-footer">
       <div className="site-footer-inner">
@@ -1678,44 +1970,43 @@ function Footer() {
           <a href="#/" className="brand-link" onClick={(e) => { e.preventDefault(); go("/"); }} aria-label="Be Heard — home">
             <span className="bh-wordmark bh-wordmark--footer">Be <span className="bh-heard">Heard</span></span>
           </a>
-          <p>
-            A free, guided tool for New York parents who want to challenge an
-            IEP or special education decision — in plain English, without a
-            lawyer.
-          </p>
+          <p>{t("footer.tagline")}</p>
         </div>
         <div className="footer-col">
-          <h5>Get help</h5>
-          <a href="#/start" onClick={(e) => { e.preventDefault(); go("/start"); }}>Start a conversation</a>
-          <a href="#/how" onClick={(e) => { e.preventDefault(); go("/how"); }}>Filing a Complaint</a>
-          <a href="#/who" onClick={(e) => { e.preventDefault(); go("/who"); }}>Is this for me?</a>
+          <h5>{t("footer.h.help")}</h5>
+          <a href="#/start" onClick={(e) => { e.preventDefault(); go("/start"); }}>{t("footer.link.start")}</a>
+          <a href="#/how" onClick={(e) => { e.preventDefault(); go("/how"); }}>{t("nav.how")}</a>
+          <a href="#/who" onClick={(e) => { e.preventDefault(); go("/who"); }}>{t("nav.who")}</a>
+          {authReady && (
+            <a
+              href={user ? "#/account" : "#/login"}
+              onClick={(e) => { e.preventDefault(); go(user ? "/account" : "/login"); }}
+            >
+              {user ? t("footer.link.account") : t("footer.link.login")}
+            </a>
+          )}
         </div>
         <div className="footer-col">
-          <h5>Learn</h5>
-          <a href="#/faq" onClick={(e) => { e.preventDefault(); go("/faq"); }}>FAQ</a>
-          <a href="#/resources" onClick={(e) => { e.preventDefault(); go("/resources"); }}>Resources</a>
-          <a href="#/about" onClick={(e) => { e.preventDefault(); go("/about"); }}>About</a>
+          <h5>{t("footer.h.learn")}</h5>
+          <a href="#/faq" onClick={(e) => { e.preventDefault(); go("/faq"); }}>{t("footer.link.faq")}</a>
+          <a href="#/resources" onClick={(e) => { e.preventDefault(); go("/resources"); }}>{t("footer.link.resources")}</a>
+          <a href="#/about" onClick={(e) => { e.preventDefault(); go("/about"); }}>{t("footer.link.about")}</a>
         </div>
         <div className="footer-col">
-          <h5>Legal</h5>
-          <a href="#/terms" onClick={(e) => { e.preventDefault(); go("/terms"); }}>Terms of Use</a>
-          <a href="#/privacy" onClick={(e) => { e.preventDefault(); go("/privacy"); }}>Privacy</a>
-          <a href="#/contact" onClick={(e) => { e.preventDefault(); go("/contact"); }}>Contact</a>
+          <h5>{t("footer.h.legal")}</h5>
+          <a href="#/terms" onClick={(e) => { e.preventDefault(); go("/terms"); }}>{t("footer.link.terms")}</a>
+          <a href="#/privacy" onClick={(e) => { e.preventDefault(); go("/privacy"); }}>{t("footer.link.privacy")}</a>
+          <a href="#/contact" onClick={(e) => { e.preventDefault(); go("/contact"); }}>{t("footer.link.contact")}</a>
         </div>
       </div>
       <div className="footer-disclaimer">
         <p style={{ margin: "0 0 8px" }}>
-          By using Be Heard you agree to our{" "}
-          <a href="#/terms" onClick={(e) => { e.preventDefault(); go("/terms"); }}>Terms of Use</a>{" "}
-          and{" "}
-          <a href="#/privacy" onClick={(e) => { e.preventDefault(); go("/privacy"); }}>Privacy Policy</a>.
+          {t("footer.agree.pre")}{" "}
+          <a href="#/terms" onClick={(e) => { e.preventDefault(); go("/terms"); }}>{t("footer.agree.terms")}</a>{" "}
+          {t("footer.agree.and")}{" "}
+          <a href="#/privacy" onClick={(e) => { e.preventDefault(); go("/privacy"); }}>{t("footer.agree.privacy")}</a>.
         </p>
-        This tool is not a law firm and does not provide legal advice. The drafts and
-        guidance produced by this tool are templates and informational content
-        based on what you tell it — they do not create an attorney-client
-        relationship. For complex matters, particularly involving discipline,
-        expulsion, or significant tuition reimbursement, consider consulting a
-        licensed special education attorney.
+        {t("footer.disclaimer")}
       </div>
     </footer>
   );
@@ -1729,7 +2020,9 @@ function Footer() {
 // ============================================================================
 
 // Four scenarios. Copy/pacing are editable here without touching the loop.
-const HERO_DEMO_BEATS = [
+// EN + ES variants; HeroChatDemo picks by `lang`. Terms of art follow NYSED's
+// Spanish notice ("queja de debido proceso", "reembolso de matrícula").
+const HERO_DEMO_BEATS_EN = [
   { user: "My son is 10 and I don't think his services are enough — he gets 30 minutes of speech a week.",
     reply: "That's worth pushing on. First question: is he making progress toward his IEP goals, or…" },
   { user: "I asked the district to evaluate my daughter in September and nothing's happened.",
@@ -1737,6 +2030,15 @@ const HERO_DEMO_BEATS = [
   { user: "My daughter has dyslexia and has fallen significantly behind — I'm thinking of moving her to a private school. Can the district pay for it?",
     reply: "Sometimes, yes — it's called tuition reimbursement, and notice and timing matter a lot. Before anything else…" },
   { user: "My son has an IEP but the district just isn't delivering the services. I've been pressing them on it and they're ignoring me. Can you draft a due process complaint for me?", doc: true },
+];
+const HERO_DEMO_BEATS_ES = [
+  { user: "Mi hijo tiene 10 años y no creo que sus servicios sean suficientes — recibe 30 minutos de terapia del habla a la semana.",
+    reply: "Vale la pena insistir en eso. Primera pregunta: ¿está progresando hacia las metas de su IEP, o…" },
+  { user: "Le pedí al distrito que evaluara a mi hija en septiembre y no ha pasado nada.",
+    reply: "Eso es urgente — los distritos tienen plazos para responder a las solicitudes de evaluación. Vamos a precisar en qué punto está su solicitud…" },
+  { user: "Mi hija tiene dislexia y se ha atrasado bastante — estoy pensando en cambiarla a una escuela privada. ¿Puede pagarla el distrito?",
+    reply: "A veces, sí — se llama reembolso de matrícula, y la notificación y los plazos importan mucho. Antes que nada…" },
+  { user: "Mi hijo tiene un IEP pero el distrito simplemente no está brindando los servicios. Los he estado presionando y me están ignorando. ¿Puede redactar una queja de debido proceso para mí?", doc: true },
 ];
 // Skeleton for the beat-4 document mock. `h` = faint section-header bar.
 const HERO_DEMO_DOC = [
@@ -1747,10 +2049,14 @@ const HERO_DEMO_DOC = [
 // NOT derived from the live chat's OPENING constant (that link is severed).
 // Two paragraphs, joined by a blank line and rendered as the real chat renders
 // a multi-paragraph assistant message (see `paras` in HeroChatDemo).
-const HERO_DEMO_GREETING =
+const HERO_DEMO_GREETING_EN =
   "Hi. I'm here to help you make sense of what's going on with your child's special education — just tell me what's going on in your own words, and if you've got a document like the IEP, you can attach it any time and I'll take a look." +
   "\n\n" +
   "To start — how old is your child, and what's been worrying you?";
+const HERO_DEMO_GREETING_ES =
+  "Hola. Estoy aquí para ayudarle a entender lo que está pasando con la educación especial de su hijo — solo cuénteme qué está pasando con sus propias palabras, y si tiene un documento como el IEP, puede adjuntarlo en cualquier momento y le echaré un vistazo." +
+  "\n\n" +
+  "Para empezar — ¿qué edad tiene su hijo y qué le ha estado preocupando?";
 // Timing (ms) — tune pace here. ~30s loop across the four scenario resets.
 // `type` (per-char) is the dominant cost: the four user lines total ~480
 // chars, so it's set brisk to keep the loop near 30s despite the longer beat
@@ -1762,9 +2068,10 @@ const CD = {
 };
 
 function HeroDocMock({ lines }) {
+  const { t } = useLang();
   return (
     <div className="cd-doc">
-      <div className="cd-doc-title">Due Process Complaint</div>
+      <div className="cd-doc-title">{t("demo.doc.title")}</div>
       {lines.map((l, i) => <div key={i} className={l.h ? "cd-doc-h" : "cd-doc-line"} style={{ width: l.w }} />)}
     </div>
   );
@@ -1781,8 +2088,12 @@ function HeroCursor({ phase }) {
 }
 
 function HeroChatDemo() {
+  const { lang, t } = useLang();
+  // Localized copy for the scripted demo — switches live with the toggle.
+  const beats = lang === "es" ? HERO_DEMO_BEATS_ES : HERO_DEMO_BEATS_EN;
+  const greeting = lang === "es" ? HERO_DEMO_GREETING_ES : HERO_DEMO_GREETING_EN;
   // Render bubble text as the real chat does: blank-line-separated paragraphs.
-  const paras = (t) => String(t).split("\n\n").map((p, k) => <p key={k} className="cd-p">{p}</p>);
+  const paras = (txt) => String(txt).split("\n\n").map((p, k) => <p key={k} className="cd-p">{p}</p>);
   const reduced = useMemo(
     () => typeof window !== "undefined" && window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches,
     []
@@ -1791,7 +2102,7 @@ function HeroChatDemo() {
   const threadRef = useRef(null);
   const cursorDoneRef = useRef(false);   // cursor intro plays once per mount
   const [active, setActive] = useState(false);
-  const [messages, setMessages] = useState([{ role: "assistant", text: HERO_DEMO_GREETING }]);
+  const [messages, setMessages] = useState([{ role: "assistant", text: greeting }]);
   const [input, setInput] = useState("");
   const [typing, setTyping] = useState(false);
   const [fading, setFading] = useState(false);
@@ -1833,10 +2144,10 @@ function HeroChatDemo() {
     (async () => {
       try {
         while (!cancelled) {
-          for (let bi = 0; bi < HERO_DEMO_BEATS.length; bi++) {
-            const b = HERO_DEMO_BEATS[bi];
+          for (let bi = 0; bi < beats.length; bi++) {
+            const b = beats[bi];
             // Fresh mini-conversation: greeting only (fades in after the reset).
-            setMessages([{ role: "assistant", text: HERO_DEMO_GREETING }]);
+            setMessages([{ role: "assistant", text: greeting }]);
             setInput(""); setTyping(false); setFocused(false); setFading(false);
             await wait(CD.fresh); guard();
             // Cursor intro — once per mount, before the first scenario.
@@ -1875,7 +2186,7 @@ function HeroChatDemo() {
     })();
 
     return () => { cancelled = true; timers.forEach(clearTimeout); };
-  }, [active, reduced]);
+  }, [active, reduced, lang]);
 
   // Reduced motion: one static frame that stands on its own — greeting,
   // the beat-4 ask, and the finished document.
@@ -1884,12 +2195,12 @@ function HeroChatDemo() {
       <div className="chat-demo reduced" aria-hidden="true">
         <div className="cd-header"><span className="cd-header-mark" /><span className="cd-header-title">Be Heard</span></div>
         <div className="cd-thread">
-          <div className="cd-bubble cd-assistant">{paras(HERO_DEMO_GREETING)}</div>
-          <div className="cd-bubble cd-user">{paras(HERO_DEMO_BEATS[3].user)}</div>
+          <div className="cd-bubble cd-assistant">{paras(greeting)}</div>
+          <div className="cd-bubble cd-user">{paras(beats[3].user)}</div>
           <HeroDocMock lines={HERO_DEMO_DOC} />
         </div>
         <div className="cd-input">
-          <div className="cd-input-text empty">Ask about your child's situation…</div>
+          <div className="cd-input-text empty">{t("demo.input.placeholder")}</div>
           <div className="cd-send">→</div>
         </div>
       </div>
@@ -1910,7 +2221,7 @@ function HeroChatDemo() {
       </div>
       <div className={"cd-input" + (focused ? " focused" : "")}>
         <div className={"cd-input-text" + (input ? "" : " empty")}>
-          {input || "Ask about your child's situation…"}
+          {input || t("demo.input.placeholder")}
           {input ? <span className="cd-caret" /> : null}
         </div>
         <div className="cd-send">→</div>
@@ -1924,28 +2235,32 @@ function HeroChatDemo() {
 // ============================================================================
 
 function HomePage() {
+  const { t } = useLang();
+  const SITUATIONS = [
+    { h: "situations.t1.h", p: "situations.t1.p" },
+    { h: "situations.t2.h", p: "situations.t2.p" },
+    { h: "situations.t3.h", p: "situations.t3.p" },
+    { h: "situations.t4.h", p: "situations.t4.p" },
+    { h: "situations.t5.h", p: "situations.t5.p" },
+    { h: "situations.t6.h", p: "situations.t6.p" },
+  ];
   return (
     <div className="fade-in">
       <div className="hero">
         <div className="hero-split">
           <div className="hero-copy">
-            <div className="eyebrow">Free · For New York parents</div>
+            <div className="eyebrow">{t("hero.eyebrow")}</div>
             <h1 className="display">
-              Your child's school program isn't working.<br />
-              <em>Let's fix it.</em>
+              {t("hero.h1.line1")}<br />
+              <em>{t("hero.h1.line2")}</em>
             </h1>
-            <p className="lede">
-              This is a free tool that helps you push back when your child's IEP
-              or special education decision isn't right — without a lawyer, without
-              legalese, and without giving up. Tell us what's going on. We'll help
-              you figure out what to do next.
-            </p>
+            <p className="lede">{t("hero.lede")}</p>
             <div className="btn-row">
               <button className="btn btn-primary btn-large" onClick={() => go("/start")}>
-                Tell us what's going on
+                {t("hero.cta.primary")}
               </button>
               <button className="btn btn-secondary btn-large" onClick={() => go("/how")}>
-                Or see how filing works
+                {t("hero.cta.secondary")}
               </button>
             </div>
           </div>
@@ -1956,175 +2271,92 @@ function HomePage() {
         <div className="hero-stat">
           <div className="hero-stat-item">
             <span className="hero-stat-num">~500K</span>
-            <span>NY children receiving special education services</span>
+            <span>{t("hero.stat1")}</span>
           </div>
           <div className="hero-stat-item">
             <span className="hero-stat-num">~19%</span>
-            <span>of NYC public school students have an IEP</span>
+            <span>{t("hero.stat2")}</span>
           </div>
           <div className="hero-stat-item">
             <span className="hero-stat-num accent">$0</span>
-            <span>cost to file a due process complaint</span>
+            <span>{t("hero.stat3")}</span>
           </div>
         </div>
       </div>
 
       <div className="page-mid">
         <div className="rights-section">
-          <h2 className="section" style={{ marginTop: 0, textAlign: "center" }}>You have the right to push back.</h2>
+          <h2 className="section" style={{ marginTop: 0, textAlign: "center" }}>{t("rights.h2")}</h2>
           <div className="measure center">
-          <p>
-            Federal law — IDEA, the Individuals with Disabilities Education Act —
-            gives every parent in New York the right to challenge a special
-            education decision they believe is wrong. You don't need a lawyer.
-            You don't need permission. You don't need to be an expert. You just
-            need to put your concerns on the record in a specific way, and the
-            district has to respond.
-          </p>
-          <p>
-            Most parents who have viable claims never exercise this right —
-            because the process looks intimidating, lawyers are expensive, and
-            nobody has explained what filing actually involves. That's the gap
-            we're trying to close.
-          </p>
+          <p>{t("rights.p1")}</p>
+          <p>{t("rights.p2")}</p>
           </div>
           <div className="rights-callouts">
             <div className="rights-callout">
-              <h4>The tool is free</h4>
-              <p>
-                Always. There's no fee to use this tool, no premium tier, and no
-                catch. We built this because parents shouldn't have to choose
-                between their child's education and their savings account.
-              </p>
+              <h4>{t("rights.c1.h")}</h4>
+              <p>{t("rights.c1.p")}</p>
             </div>
             <div className="rights-callout">
-              <h4>Filing is free too</h4>
-              <p>
-                There's no fee to file a due process complaint. The district
-                can't recover legal fees from you unless your filing is
-                frivolous (a high bar). The downside of filing is genuinely low.
-              </p>
+              <h4>{t("rights.c2.h")}</h4>
+              <p>{t("rights.c2.p")}</p>
             </div>
             <div className="rights-callout">
-              <h4>You don't need a lawyer</h4>
-              <p>
-                Many parents handle these cases pro se and most settle at the
-                resolution session — an informal meeting before any hearing.
-                The system is designed to work for parents who represent themselves.
-              </p>
+              <h4>{t("rights.c3.h")}</h4>
+              <p>{t("rights.c3.p")}</p>
             </div>
           </div>
         </div>
 
-        <h2 className="section" style={{ textAlign: "center" }}>Common situations we help with</h2>
-        <p className="muted measure center text-center">
-          Tap any of these to see what it looks like in our tool. You don't have to
-          fit neatly into a category — most parents don't.
-        </p>
+        <h2 className="section" style={{ textAlign: "center" }}>{t("situations.h2")}</h2>
+        <p className="muted measure center text-center">{t("situations.sub")}</p>
         <div className="card-grid">
-          <a className="tile" onClick={(e) => { e.preventDefault(); go("/who"); }} href="#/who">
-            <h3>The services aren't enough</h3>
-            <p>
-              Your child needs more speech, OT, reading help, or 1:1 support
-              than the IEP provides — and the district keeps saying no.
-            </p>
-            <span className="tile-arrow">See how →</span>
-          </a>
-          <a className="tile" onClick={(e) => { e.preventDefault(); go("/who"); }} href="#/who">
-            <h3>Services are missing</h3>
-            <p>
-              The IEP says your child gets services, but they're being skipped,
-              shortened, or quietly dropped.
-            </p>
-            <span className="tile-arrow">See how →</span>
-          </a>
-          <a className="tile" onClick={(e) => { e.preventDefault(); go("/who"); }} href="#/who">
-            <h3>You're considering private school</h3>
-            <p>
-              The public program isn't working and you're thinking about
-              unilateral private placement — with the district paying.
-            </p>
-            <span className="tile-arrow">See how →</span>
-          </a>
-          <a className="tile" onClick={(e) => { e.preventDefault(); go("/who"); }} href="#/who">
-            <h3>The evaluation feels wrong</h3>
-            <p>
-              The district's evaluation missed things, or they're refusing to
-              evaluate — and you can't move forward without one.
-            </p>
-            <span className="tile-arrow">See how →</span>
-          </a>
-          <a className="tile" onClick={(e) => { e.preventDefault(); go("/who"); }} href="#/who">
-            <h3>The placement is wrong</h3>
-            <p>
-              The class size, ratio, or restrictiveness doesn't match what your
-              child actually needs.
-            </p>
-            <span className="tile-arrow">See how →</span>
-          </a>
-          <a className="tile" onClick={(e) => { e.preventDefault(); go("/who"); }} href="#/who">
-            <h3>The district has gone quiet</h3>
-            <p>
-              You've raised concerns at meetings or in emails and gotten no
-              meaningful response.
-            </p>
-            <span className="tile-arrow">See how →</span>
-          </a>
+          {SITUATIONS.map((s) => (
+            <a key={s.h} className="tile" onClick={(e) => { e.preventDefault(); go("/who"); }} href="#/who">
+              <h3>{t(s.h)}</h3>
+              <p>{t(s.p)}</p>
+              <span className="tile-arrow">{t("situations.tileArrow")}</span>
+            </a>
+          ))}
         </div>
       </div>
 
       <section className="how-band">
         <div className="how-inner">
           <div className="how-intro">
-            <h2 className="section" style={{ marginTop: 0 }}>How this works</h2>
-            <p>Here's what actually happens when you start — no forms, no jargon, no cost.</p>
+            <h2 className="section" style={{ marginTop: 0 }}>{t("how.h2")}</h2>
+            <p>{t("how.intro")}</p>
           </div>
 
           <div className="how-step">
             <div className="how-step-text">
               <div className="how-num">1</div>
-              <h3>Tell us what's going on</h3>
-              <p>
-                Open the chat. Describe your situation in your own words — no forms,
-                no jargon. We'll ask follow-up questions, identify what kind of claim
-                this looks like, and flag time-sensitive issues right away.
-              </p>
+              <h3>{t("how.s1.h")}</h3>
+              <p>{t("how.s1.p")}</p>
             </div>
             <div className="how-step-visual">
-              <img className="how-visual-img" src="/Images/kid-studying-difficulty.webp" alt="A child working through difficult schoolwork" loading="lazy" decoding="async" />
+              <img className="how-visual-img" src="/Images/kid-studying-difficulty.webp" alt={t("how.s1.alt")} loading="lazy" decoding="async" />
             </div>
           </div>
 
           <div className="how-step reverse">
             <div className="how-step-text">
               <div className="how-num">2</div>
-              <h3>Get something useful in your hands</h3>
-              <p>
-                Depending on your situation, that might be a 10-day notice letter, a
-                written follow-up to the CSE chair, a list of documents to gather, or
-                a draft of a full due process complaint. You can edit, download, and
-                send anything we generate.
-              </p>
+              <h3>{t("how.s2.h")}</h3>
+              <p>{t("how.s2.p")}</p>
             </div>
             <div className="how-step-visual">
-              <img className="how-visual-img" src="/Images/get-something-useful.webp" alt="A parent at a desk holding a printed due process complaint, with an IEP binder, a next-steps checklist, and a laptop" loading="lazy" decoding="async" />
+              <img className="how-visual-img" src="/Images/get-something-useful.webp" alt={t("how.s2.alt")} loading="lazy" decoding="async" />
             </div>
           </div>
 
           <div className="how-step">
             <div className="how-step-text">
               <div className="how-num">3</div>
-              <h3>Decide what to do</h3>
-              <p>
-                We'll explain what filing involves, what to expect, and what your
-                options are — including alternatives like mediation. Most parents who
-                file at all settle their case at the resolution session, without ever
-                seeing a hearing room. You're not signing up for a lawsuit; you're
-                putting your situation on the record.
-              </p>
+              <h3>{t("how.s3.h")}</h3>
+              <p>{t("how.s3.p")}</p>
             </div>
             <div className="how-step-visual">
-              <img className="how-visual-img" src="/Images/decide-what-to-do.webp" alt="Two parents discussing their options with an advisor at a table, beside a checklist of options: resolution session, mediation, agreement, and hearing" loading="lazy" decoding="async" />
+              <img className="how-visual-img" src="/Images/decide-what-to-do.webp" alt={t("how.s3.alt")} loading="lazy" decoding="async" />
             </div>
           </div>
         </div>
@@ -2132,39 +2364,18 @@ function HomePage() {
 
       <div className="page-mid">
         <div className="cta-strip">
-          <h3>Ready to start?</h3>
-          <p>
-            The conversation takes about ten minutes, costs nothing, and
-            doesn't commit you to anything. You can stop, save, and come back
-            any time.
-          </p>
+          <h3>{t("cta.h3")}</h3>
+          <p>{t("cta.p")}</p>
           <button className="btn btn-primary" onClick={() => go("/start")}>
-            Start the conversation
+            {t("cta.button")}
           </button>
         </div>
 
-        <h2 className="section" style={{ textAlign: "center" }}>You Can Do Something About It</h2>
+        <h2 className="section" style={{ textAlign: "center" }}>{t("can.h2")}</h2>
         <div className="measure center">
-        <p>
-          The thing we hear most from parents — both before and after they
-          finally file — is some version of: <em>I didn't know I could do
-          this.</em>
-        </p>
-        <p>
-          You can. Filing a due process complaint isn't a lawsuit. There's no
-          fee. The district can't recover legal fees from you unless the
-          filing is frivolous (a high bar). The worst plausible outcome is
-          that you don't get what you asked for and you're back where you
-          started — only with a much clearer record. The likeliest outcome,
-          especially in clear-cut cases, is that the resolution session itself
-          produces some kind of accommodation, because the district doesn't
-          want to litigate.
-        </p>
-        <p>
-          We built this tool because we think the gap between "I have a real
-          problem" and "I can do something about it" is too wide. The tool is
-          free, and it always will be. We're trying to close that gap.
-        </p>
+        <p>{t("can.p1.pre")} <em>{t("can.p1.em")}</em></p>
+        <p>{t("can.p2")}</p>
+        <p>{t("can.p3")}</p>
         </div>
       </div>
     </div>
@@ -6416,6 +6627,17 @@ function IEPSection({
 const OPENING =
   "Hi. I'm here to help you make sense of what's going on with your child's special education — what their documents actually say, where the district may be falling short, and what you can do about it, whether that's pushing back, getting something in writing, or filing if it comes to that.\n\nNo form to fill out. Just tell me what's going on in your own words, and if you've got a document like the IEP, you can attach it any time and I'll take a look.\n\nTo start — what's your child's first name, and what's been worrying you?";
 
+// Spanish opening (item 5). Stated up front — the legal drafts are prepared in
+// English (that's how districts process them) but explained in Spanish. Uses
+// NYSED terms of art ("queja de debido proceso", "aviso por escrito de 10 días").
+const OPENING_ES =
+  "Hola. Estoy aquí para ayudarle a entender lo que está pasando con la educación especial de su hijo — lo que realmente dicen sus documentos, dónde el distrito podría estar fallando, y qué puede hacer al respecto, ya sea reclamar, obtener algo por escrito, o presentar una queja si llega a eso.\n\nNo hay ningún formulario que llenar. Solo cuénteme qué está pasando con sus propias palabras, y si tiene un documento como el IEP, puede adjuntarlo en cualquier momento y le echaré un vistazo.\n\nUna nota: los documentos legales que preparemos — la queja de debido proceso, las cartas al distrito, el aviso por escrito de 10 días — los redactaré en inglés, porque así es como los distritos y el Departamento de Educación del Estado los procesan. Pero le explicaré todo sobre ellos en español, en cada paso.\n\nPara empezar — ¿cuál es el nombre de su hijo y qué le ha estado preocupando?";
+
+// The Spanish language directive appended to the chat's system prompt when the
+// site language is ES (item 5). Drives Spanish conversation; the drafted legal
+// documents themselves stay English. Full text mirrored in docs §5b.
+const CHAT_LANGUAGE_ES = "\n\n--- LANGUAGE: SPANISH ---\nThe parent is using the site in Spanish. Conduct this entire conversation in warm, plain, natural Spanish — every message you write to the parent must be in Spanish, including greetings and follow-ups. Keep the site's voice: warm, direct, encouraging, plain-spoken, never bureaucratic. Do not switch to English unless the parent writes to you in English.\n\nFor special-education terms of art, use the Spanish terminology New York State uses in its parent materials, keeping the English acronym in parentheses on first use so the parent can recognize the term on district paperwork — e.g. \"IEP\" (Programa de Educación Individualizada), \"queja de debido proceso\" (due process complaint), \"reunión de resolución\", \"comité de educación especial (CSE)\", \"mediación\", \"reembolso de matrícula\".\n\nIMPORTANT — the legal documents you help prepare (the due-process complaint, letters to the district, the 10-day notice) are written in ENGLISH, because that is the language school districts and the State Education Department process them in. You will still explain everything about them — what each says, why it matters, what to do with it — in Spanish, at every step. When it comes up naturally (and briefly in your opening), say this warmly, as reassurance, not as a disclaimer. Never translate the drafted legal documents themselves into Spanish.";
+
 // Honest, recap-derived opening for a returning parent's fresh chat: states what
 // was done (the recap), is candid that we don't know what they did since, and
 // invites an update. Thin-history fallback when there's no meaningful recap yet.
@@ -6521,8 +6743,12 @@ function renderMessageText(content) {
 }
 
 function ChatTool() {
+  const { lang } = useLang();
+  // Fresh-chat greeting follows the site language (item 5). A restored session or
+  // a returning-parent recap opening (below) overrides this; toggling mid-chat
+  // never wipes an in-progress conversation — only new turns go Spanish.
   const [messages, setMessages] = useState([
-    { role: "assistant", content: OPENING },
+    { role: "assistant", content: lang === "es" ? OPENING_ES : OPENING },
   ]);
   const [intake, setIntake] = useState({});
   const [chatState, setChatState] = useState("continuing");
@@ -7227,6 +7453,13 @@ function ChatTool() {
     baseSystem += authUser
       ? "\n\n--- ACCOUNT STATE ---\nThe parent is signed in; their case and drafts are already being saved. Do NOT suggest creating an account."
       : "\n\n--- ACCOUNT STATE ---\nThe parent is NOT signed in; nothing is being saved server-side.";
+    // Language hint (item 5): when the site is in Spanish, direct the chat to open
+    // and converse in Spanish. Appended to the system prompt client-side — the
+    // serverless function forwards `system` verbatim, so no function change needed.
+    // Drafted legal documents themselves stay English (runDrafter is untouched).
+    if (lang === "es") {
+      baseSystem += CHAT_LANGUAGE_ES;
+    }
     const docsBlock = formatDocsForPrompt(docs);
     if (docsBlock) {
       baseSystem += "\n\n--- UPLOADED DOCUMENTS ---\n" + docsBlock;
@@ -7419,7 +7652,7 @@ function ChatTool() {
 
     // Reset all React state immediately so the user sees clean state even
     // before the storage delete completes.
-    setMessages([{ role: "assistant", content: OPENING }]);
+    setMessages([{ role: "assistant", content: lang === "es" ? OPENING_ES : OPENING }]);
     setIntake({});
     // New conversation = new session row next time something is persisted. The
     // server case row is left intact (the persist guard skips empty state), so
@@ -8297,7 +8530,11 @@ function App() {
 }
 
 const root = ReactDOM.createRoot(document.getElementById("root"));
-root.render(<App />);
+root.render(
+  <LangProvider>
+    <App />
+  </LangProvider>
+);
 </script>
 </body>
 </html>
