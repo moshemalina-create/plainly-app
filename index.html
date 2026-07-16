@@ -3291,6 +3291,8 @@ Asking for documents:
 - More directly when the answer genuinely depends on what's in the document — but keep the focus on THEIR question, not on your own limitations. Don't say "I can't tell you without seeing it." Say: "Whether that reading goal is actually appropriate depends on what the evaluation recommended — is that something you can share?"
 - Ask once. If they don't have it, work with what you've got and tell them what's less certain without it. Don't nag.
 
+PRIVACY WHEN INVITING UPLOADS: The first time in a conversation you invite or ask the parent to upload a document, add one brief, soft sentence letting them know they're welcome to black out or cover last names and other identifying details first — your review works fine without them. Keep it light and optional: a helpful aside, never a requirement or a warning. Say it once; do not repeat it on later upload invitations in the same conversation.
+
 When a parent attaches a document, do NOT immediately analyze it at them. Acknowledge that you've read it, maybe note one or two things that stand out, and then hand the floor back to the parent. For example: "Okay, I've read through it. Before I tell you what I notice — what's been bothering you about how things are going for [child]?" The document is there to inform the parent's concern, not to trigger a preemptive report. Let them tell you what matters; then use the document to go deeper on it.
 
 Once a document is in the conversation, its text appears in an UPLOADED DOCUMENTS section appended below. Treat that text as the real document the parent shared. Reference specifics naturally — service amounts, goal language, dates, classification, who signed what. Never invent anything that isn't actually there. If a document shows as truncated, tell the parent you've read most of it and ask them to point you to a specific section or page if you need a part you can't see. Documents can be any type; work out what each one is from its contents and use it accordingly.
@@ -3363,7 +3365,11 @@ When you offer, be specific and tailored — pick the 1-3 most relevant to their
 WHEN YOU OFFER AND THE PARENT ACCEPTS — hand off, don't draft
 When you trigger an output, the document is generated separately and appears in a panel directly below the conversation, where the parent can read it, fill in highlighted [PARENT TO ADD: …] blanks, download it as a PDF, or copy it. Do NOT write the document's text in your chat_reply. This means no full text, no partial drafts, no "here's roughly what I'm thinking" previews. The panel is the document. Your chat_reply is the hand-off.
 
+If you're generating a document that includes a name and you only have first names so far, reassure the parent briefly in your hand-off that the draft works fine with first names — it'll use them and clearly mark the spots where a full legal name goes, and they can add full names to the final version before filing. Say it once, lightly; don't make it a to-do.
+
 Don't ask for the kind of formal letterhead details that turn into bracketed placeholders — addresses, official names, identification numbers, district mailing addresses, things like that. The panel surfaces those as fill-in spots; you don't need to collect them in chat. This is about transcription, not substance: the case facts and the dates that carry legal weight — see "WHEN A FULL COMPLAINT IS ON THE TABLE" — you DO gather in conversation, because they're the content of the document, not letterhead.
+
+Never make document generation wait on collecting full legal names or other letterhead details, and never send the parent to a form for them. Generate with the first names you have; the document marks every spot where a full name, address, or other filing detail goes, and the parent fills those in before filing. (First names in the body are fine — full names get added to the final version. Say this once at hand-off if it's relevant; don't repeat it.)
 
 Your chat_reply is a short, specific hand-off: name the document you've drafted, point to the panel below, and say what they'll need to fill in. A parent in a stressful moment may not notice a panel below the fold — be specific so they know to look and what to look for. For example: "I've drafted a follow-up letter to the CSE chair below. You'll need to fill in your address and a couple of other details — they're highlighted in the letter. Tell me if you want any changes to the wording." (Name the specific fields when you can — addresses, the chair's name, the IEP date, whatever the document actually needs — rather than "a couple of details.")
 
@@ -3571,6 +3577,8 @@ FORMAT
 - Closing: "Sincerely," then parent's name. Email/phone underneath.
 
 If a required fact is missing from the inputs, use a clearly bracketed placeholder like [PARENT TO ADD: date of last CSE meeting]. Do NOT invent dates, names, or quotations.
+
+NAMES AND IDENTITY — for every identity field (names, address, school), prefer what the parent actually stated in the conversation (see chat_excerpt) or the provided context. If the parent gave a full legal name, use it. If you only have a first name, use it naturally in the body of the letter and use a [PARENT TO ADD: last name] placeholder where the full legal name is required — the letterhead/address block and the signature. For any required identity detail that is genuinely absent, leave a clearly bracketed [PARENT TO ADD: …] placeholder — never invent or guess it, and never silently omit it (the placeholder is what surfaces it to the parent as a fill-in spot).
 
 Return only the letter text. No commentary, no preamble.`;
 
@@ -4056,6 +4064,8 @@ OUTPUT
 Plain text formatted as a letter. NO Markdown or formatting syntax of any kind: no asterisks for bold (**like this**), no # headings, no dashes or asterisks as bullets — this document goes to a school district or hearing officer and any such characters render as unprofessional raw artifacts. Use ordinary line breaks and short paragraphs. When you need to separate distinct points or issues, use plain paragraph breaks or simple numbered points (1., 2., 3.) as a formal letter would — never Markdown emphasis as a header. End with signature block: parent name, address, phone, email, date.
 
 Don't include certificate of service unless asked. List evidence under "Documents I am prepared to provide" at the end if relevant. Don't predict outcomes. Don't include disclaimers. Don't invent dates, names, services, or quotes. Use [PARENT TO ADD: ...] placeholders for any required element you don't have.
+
+IDENTITY — prefer what the parent actually stated, placeholder only what's genuinely absent, never invent. For every identity field — parent and child names, address of residence, school, date of birth — use the value the parent gave in the conversation (see chat_transcript_excerpt) or the payload. If you only have a first name, use it naturally in the body and write the full legal name as "First [PARENT TO ADD: last name]" in the caption and signature. Any required element you genuinely don't have — the child's full name, the parent's full name, the address of residence, the school, the date of birth — MUST appear as a clearly bracketed [PARENT TO ADD: …] placeholder in the draft. Never invent or guess one, and never silently omit a required element: the complaint must be legally sufficient, and the placeholder is what tells the parent exactly what to fill in before filing.
 
 Return only the letter text. No preamble, no commentary.`;
 
@@ -5954,6 +5964,17 @@ function TriageSection({ result, loading }) {
   );
 }
 
+// Shared muted caption near generated documents: reassures the parent that a
+// draft is fine with first names and full names get added before filing. Echoes
+// the "How is AI used?" FAQ and the chat opening privacy tip.
+function FirstNameDraftTip({ style }) {
+  return (
+    <p className="first-name-tip" style={{ fontSize: 13, color: "var(--ink-soft)", fontStyle: "italic", margin: "8px 0 0", ...style }}>
+      Tip: drafts work fine with first names — add full names when you prepare the final version to file.
+    </p>
+  );
+}
+
 function DraftReview({ draft, edited, onEditChange, checks, onCheckChange, onRegenerate, drafting, onSavePdf }) {
   const [editing, setEditing] = useState(false);
   if (drafting) {
@@ -5971,6 +5992,10 @@ function DraftReview({ draft, edited, onEditChange, checks, onCheckChange, onReg
 
   const finalText = edited != null ? edited : draft;
   const allChecked = checks.accuracy && checks.dates && checks.remedy;
+  // Required identity/content spots the drafter left as [PARENT TO ADD: …] — an
+  // insufficient complaint is a real legal risk, so these are surfaced prominently
+  // and highlighted in the draft (same convention the letters use).
+  const missing = extractPlaceholderLabels(finalText);
 
   const downloadAsPdf = () => {
     const blob = downloadPdf(finalText, "due-process-complaint.pdf");
@@ -5993,6 +6018,7 @@ function DraftReview({ draft, edited, onEditChange, checks, onCheckChange, onReg
         want to achieve. If the tone or approach sounds off to you, let me know and
         I can revise.
       </p>
+      <FirstNameDraftTip />
 
       <div className="filing-help">
         <strong>Once it's ready, here's how to send it in:</strong>{" "}
@@ -6000,6 +6026,23 @@ function DraftReview({ draft, edited, onEditChange, checks, onCheckChange, onReg
           How to file your complaint →
         </a>
       </div>
+
+      {missing.length > 0 && !editing && (
+        <div
+          style={{
+            background: "#FFF7D6",
+            border: "1px solid #EBD98A",
+            borderRadius: 8,
+            padding: "10px 12px",
+            marginBottom: 12,
+            fontSize: 13.5,
+            color: "var(--ink)",
+          }}
+        >
+          <strong style={{ fontWeight: 500 }}>You still need to fill in before filing:</strong>{" "}
+          {missing.join(", ")}. They're highlighted below — click "Edit directly" to type them in.
+        </div>
+      )}
 
       {editing ? (
         <div className="draft-paper">
@@ -6010,7 +6053,7 @@ function DraftReview({ draft, edited, onEditChange, checks, onCheckChange, onReg
           />
         </div>
       ) : (
-        <div className="draft-paper">{finalText}</div>
+        <div className="draft-paper">{renderWithPlaceholders(finalText, "draft")}</div>
       )}
 
       <div style={{ display: "flex", gap: 10, marginTop: 12, flexWrap: "wrap" }}>
@@ -6069,107 +6112,12 @@ function DraftReview({ draft, edited, onEditChange, checks, onCheckChange, onReg
   );
 }
 
-// Exact-spelling identity inputs. These are the only things collected by a form;
-// every substantive fact lives in the chat-gathered intake.
-const FORMAL_FIELD_DEFS = {
-  parent_full_name: { label: "Your full legal name", placeholder: "e.g., Sarah Goldberg" },
-  parent_address: { label: "Your mailing address", placeholder: "123 Main St, New Rochelle, NY 10801" },
-  parent_email: { label: "Email", type: "email" },
-  parent_phone: { label: "Phone" },
-  child_full_name: { label: "Your child's full legal name", placeholder: "e.g., Jacob Goldberg" },
-  child_dob: { label: "Your child's date of birth", type: "date" },
-};
-
-// One form for both the lighter letters (two names) and the full complaint (the
-// full signature-block set). mode="letters" | "complaint" selects the field set,
-// the required subset, and the framing copy. Writes into the shared formalFields
-// store, so a name typed for a letter pre-populates the complaint and vice versa.
-function FormalFieldsForm({ values, onChange, onSubmit, onCancel, mode, neededFor, childFirstName }) {
-  const set = (k, v) => onChange((p) => ({ ...p, [k]: v }));
-
-  const fields = mode === "complaint"
-    ? ["parent_full_name", "parent_address", "parent_email", "parent_phone", "child_full_name", "child_dob"]
-    : ["parent_full_name", "child_full_name"];
-  const required = mode === "complaint"
-    ? ["parent_full_name", "parent_address", "child_full_name"]
-    : ["parent_full_name", "child_full_name"];
-  const canSubmit = required.every((k) => (values[k] || "").trim());
-
-  // Pre-fill child's full name with the first name from chat, if blank.
-  useEffect(() => {
-    if (childFirstName && !values.child_full_name) set("child_full_name", childFirstName + " ");
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [childFirstName]);
-
-  const renderField = (k) => {
-    const def = FORMAL_FIELD_DEFS[k];
-    let label = def.label;
-    let placeholder = def.placeholder;
-    if (k === "child_full_name" && childFirstName) {
-      label = childFirstName + "'s full legal name";
-      placeholder = `${childFirstName} Goldberg`;
-    }
-    if (k === "child_dob" && childFirstName) label = childFirstName + "'s date of birth";
-    return (
-      <div className="field" key={k}>
-        <label>{label}</label>
-        <input
-          type={def.type || "text"}
-          value={values[k] || ""}
-          onChange={(e) => set(k, e.target.value)}
-          placeholder={placeholder}
-        />
-      </div>
-    );
-  };
-
-  if (mode === "complaint") {
-    return (
-      <div className="stage-block">
-        <div className="stage-eyebrow">Last step before drafting</div>
-        <h3 className="stage-title">A few formal details.</h3>
-        <p className="stage-lede">
-          We need these for the caption and signature block of the complaint —
-          the exact names and contact details that go on a filed document. The
-          remedy and everything else we've already worked out in the chat. P.O.
-          box is fine for the address.
-        </p>
-        <div className="drafter-form">
-          <div className="drafter-section">
-            <h4>For the caption and signature</h4>
-            <p className="help">Required by NY procedure to identify who is filing on whose behalf.</p>
-            {fields.map(renderField)}
-          </div>
-          <div style={{ display: "flex", gap: 10, marginTop: 16 }}>
-            <button className="btn btn-primary" onClick={onSubmit} disabled={!canSubmit}>
-              Generate the draft
-            </button>
-            {onCancel && (
-              <button className="btn btn-ghost" onClick={onCancel}>Cancel</button>
-            )}
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  const labelList = (neededFor || []).map((id) => OUTPUT_LIBRARY[id]?.label).filter(Boolean).join(", ");
-  return (
-    <div className="letter-fields-card">
-      <h4>One last thing — full legal names for the letterhead</h4>
-      <p className="help">
-        I have {childFirstName || "your child"}'s first name from our chat, but for letters that get sent to the district, I want to make sure I have full legal names — both yours and {childFirstName ? childFirstName + "'s" : "your child's"}. This is the only piece I'll need that wasn't covered above.
-      </p>
-      <p className="help" style={{ marginTop: -8 }}>
-        For: {labelList}.
-      </p>
-      {fields.map(renderField)}
-      <button className="btn btn-primary" onClick={onSubmit} disabled={!canSubmit}>
-        Generate the documents
-      </button>
-    </div>
-  );
-}
+// NOTE: FormalFieldsForm + FORMAL_FIELD_DEFS were removed (privacy-nudges). The
+// app no longer collects full legal names / letterhead identity through a form —
+// documents generate directly with the chat's first names and [PARENT TO ADD: …]
+// placeholders, and the parent fills full details in offline before filing. The
+// `formalFields` state + persistence are kept: returning users' saved identity
+// (from before this change) is still read and preferred over placeholders.
 
 function OutputCard({ id, def, content, loading, onRegenerate, onSavePdf }) {
   const [open, setOpen] = useState(true);
@@ -6237,6 +6185,7 @@ function OutputCard({ id, def, content, loading, onRegenerate, onSavePdf }) {
                 const missing = extractPlaceholderLabels(currentText);
                 return (
                 <>
+                  <FirstNameDraftTip style={{ marginTop: 0, marginBottom: 12 }} />
                   {missing.length > 0 && !editing && (
                     <div
                       style={{
@@ -6640,13 +6589,13 @@ function IEPSection({
 // ============================================================================
 
 const OPENING =
-  "Hi. I'm here to help you make sense of what's going on with your child's special education — what their documents actually say, where the district may be falling short, and what you can do about it, whether that's pushing back, getting something in writing, or filing if it comes to that.\n\nNo form to fill out. Just tell me what's going on in your own words, and if you've got a document like the IEP, you can attach it any time and I'll take a look.\n\nTo start — what's your child's first name, and what's been worrying you?";
+  "Hi. I'm here to help you make sense of what's going on with your child's special education — what their documents actually say, where the district may be falling short, and what you can do about it, whether that's pushing back, getting something in writing, or filing if it comes to that.\n\nNo form to fill out. Just tell me what's going on in your own words, and if you've got a document like the IEP, you can attach it any time and I'll take a look.\n\nA quick privacy tip: you're welcome to use just first names — yours and your child's. You can add the full name to any documents I create for you offline of this tool, when you're ready to file. You can also black out the full name, birthdate, etc. on any IEP or evaluation you upload if you prefer.\n\nTo start — what's your child's first name, and what's been worrying you?";
 
 // Spanish opening (item 5). Stated up front — the legal drafts are prepared in
 // English (that's how districts process them) but explained in Spanish. Uses
 // NYSED terms of art ("queja de debido proceso", "aviso por escrito de 10 días").
 const OPENING_ES =
-  "Hola. Estoy aquí para ayudarle a entender lo que está pasando con la educación especial de su hijo — lo que realmente dicen sus documentos, dónde el distrito podría estar fallando, y qué puede hacer al respecto, ya sea reclamar, obtener algo por escrito, o presentar una queja si llega a eso.\n\nNo hay ningún formulario que llenar. Solo cuénteme qué está pasando con sus propias palabras, y si tiene un documento como el IEP, puede adjuntarlo en cualquier momento y le echaré un vistazo.\n\nUna nota: los documentos legales que preparemos — la queja de debido proceso, las cartas al distrito, el aviso por escrito de 10 días — los redactaré en inglés, porque así es como los distritos y el Departamento de Educación del Estado los procesan. Pero le explicaré todo sobre ellos en español, en cada paso.\n\nPara empezar — ¿cuál es el nombre de su hijo y qué le ha estado preocupando?";
+  "Hola. Estoy aquí para ayudarle a entender lo que está pasando con la educación especial de su hijo — lo que realmente dicen sus documentos, dónde el distrito podría estar fallando, y qué puede hacer al respecto, ya sea reclamar, obtener algo por escrito, o presentar una queja si llega a eso.\n\nNo hay ningún formulario que llenar. Solo cuénteme qué está pasando con sus propias palabras, y si tiene un documento como el IEP, puede adjuntarlo en cualquier momento y le echaré un vistazo.\n\nUna nota: los documentos legales que preparemos — la queja de debido proceso, las cartas al distrito, el aviso por escrito de 10 días — los redactaré en inglés, porque así es como los distritos y el Departamento de Educación del Estado los procesan. Pero le explicaré todo sobre ellos en español, en cada paso.\n\nUn consejo de privacidad: puede usar solo los nombres de pila — el suyo y el de su hijo. Puede agregar el nombre completo a cualquier documento que yo cree, fuera de esta herramienta, cuando esté listo para presentarlo. Si lo prefiere, también puede tachar el nombre completo, la fecha de nacimiento y otros datos en cualquier IEP o evaluación que suba.\n\nPara empezar — ¿cuál es el nombre de su hijo y qué le ha estado preocupando?";
 
 // The Spanish language directive appended to the chat's system prompt when the
 // site language is ES (item 5). Drives Spanish conversation; the drafted legal
@@ -7055,19 +7004,25 @@ function ChatTool() {
   // OUTPUT LIBRARY GENERATION
   // ============================================================================
 
-  const outputNeedsLetterFields = (id) => {
-    const def = OUTPUT_LIBRARY[id];
-    if (!def) return false;
-    if (id === "full_complaint") return false;
-    return def.min_fields && def.min_fields.length > 0;
-  };
-
   const getOutputPromptAndPayload = (outputId) => {
     const today = new Date().toISOString().slice(0, 10);
+    // Identity: prefer a saved full name (returning users), else the chat first
+    // name with a clearly-marked last-name placeholder, else a full placeholder.
+    // The prompt is also told to prefer any full name the parent stated in the
+    // transcript (chat_excerpt). Placeholders flow into the highlighter + the
+    // "You still need to fill in" box; nothing is silently omitted.
+    const childFirst = (intake.student_first_name || "").trim();
+    const childFullName = (formalFields.child_full_name && formalFields.child_full_name.trim())
+      ? formalFields.child_full_name
+      : (childFirst ? `${childFirst} [PARENT TO ADD: last name]` : "[PARENT TO ADD: child's full name]");
+    const parentFullName = (formalFields.parent_full_name && formalFields.parent_full_name.trim())
+      ? formalFields.parent_full_name
+      : "[PARENT TO ADD: your full name]";
     const sharedContext = {
       today,
-      parent_full_name: formalFields.parent_full_name || "[PARENT TO ADD: full name]",
-      child_full_name: formalFields.child_full_name || "[PARENT TO ADD: child's full name]",
+      parent_full_name: parentFullName,
+      child_full_name: childFullName,
+      child_first_name: childFirst,
       captured_intake: intake,
       district_name: intake.district_name || "[PARENT TO ADD: district name]",
       chat_excerpt: messages
@@ -7108,7 +7063,7 @@ function ChatTool() {
           "Generate action recommendations.\n\nINTAKE:\n" + JSON.stringify(intake, null, 2)
         );
       } else if (outputId === "full_complaint") {
-        return; // handled by drafter form, not auto-generated
+        return; // handled by the full-complaint flow (runDrafter), not auto-generated
       } else {
         const { systemPrompt, userMsg } = getOutputPromptAndPayload(outputId);
         if (!systemPrompt) throw new Error("Unknown output type: " + outputId);
@@ -7134,15 +7089,13 @@ function ChatTool() {
     }
   };
 
-  // When outputsRequested changes (and letter fields are collected if needed),
-  // generate any pending outputs.
+  // When outputsRequested changes, generate any pending outputs immediately.
+  // No identity-collection gate: documents generate with whatever names the chat
+  // has (first names + [PARENT TO ADD: …] placeholders); the parent adds full
+  // names to the final version offline.
   useEffect(() => {
     if (!loaded) return;
     if (outputsRequested.length === 0) return;
-    const pendingLetters = outputsRequested.filter(
-      (id) => outputNeedsLetterFields(id) && !outputs[id] && !outputsLoading[id]
-    );
-    if (pendingLetters.length > 0 && !formalFieldsCollected) return;
     for (const id of outputsRequested) {
       if (id === "full_complaint") continue;
       if (!outputs[id] && !outputsLoading[id]) {
@@ -7150,7 +7103,7 @@ function ChatTool() {
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [outputsRequested, formalFieldsCollected, loaded]);
+  }, [outputsRequested, loaded]);
 
   // ============================================================================
   // IEP UPLOAD PROCESSING
@@ -7313,22 +7266,33 @@ function ChatTool() {
     setDrafting(true);
     try {
       const today = new Date().toISOString().slice(0, 10);
+      // Identity: prefer a saved value (returning users), else a clearly-marked
+      // placeholder so every required field renders and surfaces in the fill-in
+      // list — an insufficient complaint is a real legal risk, so nothing is
+      // silently omitted. The prompt is also told to prefer any value the parent
+      // stated in the transcript before falling back to the placeholder.
+      const childFirst = (intake.student_first_name || "").trim();
+      const orPlaceholder = (v, ph) => (v && String(v).trim() ? v : ph);
+      const childFullName = (formalFields.child_full_name && formalFields.child_full_name.trim())
+        ? formalFields.child_full_name
+        : (childFirst ? `${childFirst} [PARENT TO ADD: last name]` : "[PARENT TO ADD: child's full name]");
       const fullPayload = {
         today,
-        // Identity from the form (exact spelling); everything else from intake.
+        // Identity: saved exact spelling if present, else placeholders. Substance
+        // comes from intake; the drafter prefers transcript-stated values too.
         parent: {
-          full_name: formalFields.parent_full_name,
-          address: formalFields.parent_address,
-          email: formalFields.parent_email,
-          phone: formalFields.parent_phone,
+          full_name: orPlaceholder(formalFields.parent_full_name, "[PARENT TO ADD: your full name]"),
+          address: orPlaceholder(formalFields.parent_address, "[PARENT TO ADD: your address (residence)]"),
+          email: orPlaceholder(formalFields.parent_email, "[PARENT TO ADD: your email]"),
+          phone: orPlaceholder(formalFields.parent_phone, "[PARENT TO ADD: your phone]"),
         },
         student: {
-          full_name: formalFields.child_full_name,
-          date_of_birth: formalFields.child_dob,
+          full_name: childFullName,
+          date_of_birth: orPlaceholder(formalFields.child_dob, "[PARENT TO ADD: child's date of birth]"),
           first_name: intake.student_first_name,
           age: intake.student_age,
           grade: intake.student_grade,
-          school: intake.student_school,
+          school: orPlaceholder(intake.student_school, "[PARENT TO ADD: child's school]"),
           classification: intake.student_classification,
         },
         district: {
@@ -7440,9 +7404,10 @@ function ChatTool() {
       CHAT_ADVOCATE_PROMPT +
       "\n\n--- INTAKE STATE SO FAR ---\n" +
       JSON.stringify(intake, null, 2);
-    // Formal identity fields the parent already typed into a form this session.
-    // Surface them so the chat doesn't re-ask — and so it doesn't ask in chat
-    // for the ones the form (not the chat) is responsible for collecting.
+    // Exact-spelling identity already on file (saved from a prior session, or
+    // provided earlier). Surface it so the chat doesn't re-ask. Anything not on
+    // file is left for the parent to fill into the generated document offline —
+    // there is no identity-collection form.
     const collectedFormal = [
       ["Parent's full name", formalFields.parent_full_name],
       ["Parent's address", formalFields.parent_address],
@@ -7453,9 +7418,9 @@ function ChatTool() {
     ].filter(([, v]) => v && String(v).trim());
     if (collectedFormal.length > 0) {
       baseSystem +=
-        "\n\n--- ALREADY COLLECTED (do not re-ask these — the parent typed them into the form) ---\n" +
+        "\n\n--- IDENTITY ON FILE (already known — use it; do not re-ask) ---\n" +
         collectedFormal.map(([k, v]) => `- ${k}: ${v}`).join("\n") +
-        "\nIf you need other identity fields for a specific output, the form below will collect them; do not ask for them in chat.";
+        "\nFor any identity detail you don't have, the generated document marks it as a fill-in spot; do not collect it in chat.";
     }
     // Parent's own notes (authored on the account page) — inject so the chat can
     // use them. Parent-authored and shown on the account page, so client-side
@@ -7872,7 +7837,7 @@ function ChatTool() {
               onClick={() => attachRef.current?.click()}
               disabled={loading || attaching}
               aria-label="Attach a document"
-              title="Attach a PDF (IEP, evaluation, notice, anything)"
+              title="Attach a PDF (IEP, evaluation, notice, anything). You can black out last names first — it works fine without them."
               style={{ background: "transparent", color: "var(--ink-soft)" }}
             >
               {attaching ? (
@@ -7912,23 +7877,9 @@ function ChatTool() {
             </button>
           </div>
 
-        {/* LETTER FIELDS PROMPT — first, so the parent can complete and see outputs ASAP */}
-        {assessmentRequested && !formalFieldsCollected && (() => {
-          const pending = outputsRequested.filter(
-            (id) => OUTPUT_LIBRARY[id]?.min_fields?.length > 0 && id !== "full_complaint" && !outputs[id] && !outputsLoading[id]
-          );
-          if (pending.length === 0) return null;
-          return (
-            <FormalFieldsForm
-              mode="letters"
-              values={formalFields}
-              onChange={setFormalFields}
-              onSubmit={() => setFormalFieldsCollected(true)}
-              neededFor={pending}
-              childFirstName={intake.student_first_name}
-            />
-          );
-        })()}
+        {/* No identity-collection form: letters/documents generate directly with
+            the chat's first names + [PARENT TO ADD: …] placeholders (see
+            getOutputPromptAndPayload). The parent fills full names in offline. */}
 
         {/* OUTPUTS PANEL — appears immediately when parent requests outputs */}
         {assessmentRequested && outputsRequested.length > 0 && (
@@ -7955,32 +7906,24 @@ function ChatTool() {
             is preserved for the future "Quick IEP assessment" entry point. */}
 
         {/* FULL COMPLAINT FLOW — triggered when full_complaint is requested. The
-            remedy and substance are gathered + confirmed in the chat; the form
-            below collects only the exact-spelling signature-block identity. */}
-        {assessmentRequested && outputsRequested.includes("full_complaint") && !fullComplaintFormOpen && !draft && !drafting && (
+            remedy and substance are gathered + confirmed in the chat. No identity
+            form: the draft generates directly, using first names and clearly-marked
+            [PARENT TO ADD: …] placeholders for anything a filing needs (full legal
+            names, address, DOB, school). The parent completes those before filing. */}
+        {assessmentRequested && outputsRequested.includes("full_complaint") && !draft && !drafting && (
           <div className="ready-card" style={{ marginTop: 20 }}>
             <h4>Ready to prepare the full complaint?</h4>
             <p>
-              I have what you're asking for and the rest of your situation from
-              our chat. For the filed document I just need a few exact details —
-              your full name, address, email and phone, and your child's full
-              name and date of birth.
+              I have your situation and what you're asking for from our chat. I'll
+              draft the complaint now using first names, and clearly mark every spot
+              — full legal names, your address of residence, your child's school and
+              date of birth — where you'll add details before you file. You can edit
+              everything in the draft.
             </p>
-            <button className="btn btn-primary" onClick={() => setFullComplaintFormOpen(true)}>
-              Continue
+            <button className="btn btn-primary" onClick={() => runDrafter()}>
+              Draft the complaint
             </button>
           </div>
-        )}
-
-        {fullComplaintFormOpen && !draft && !drafting && (
-          <FormalFieldsForm
-            mode="complaint"
-            values={formalFields}
-            onChange={setFormalFields}
-            onSubmit={() => runDrafter()}
-            onCancel={() => setFullComplaintFormOpen(false)}
-            childFirstName={intake.student_first_name}
-          />
         )}
 
         {(drafting || draft) && (

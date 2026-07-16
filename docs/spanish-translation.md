@@ -494,7 +494,18 @@ lenguaje sencillo" (dropping "English", which no longer makes sense in a Spanish
 > porque así es como los distritos y el Departamento de Educación del Estado los
 > procesan. Pero le explicaré todo sobre ellos en español, en cada paso.
 >
+> Un consejo de privacidad: puede usar solo los nombres de pila — el suyo y el de
+> su hijo. Puede agregar el nombre completo a cualquier documento que yo cree, fuera
+> de esta herramienta, cuando esté listo para presentarlo. Si lo prefiere, también
+> puede tachar el nombre completo, la fecha de nacimiento y otros datos en cualquier
+> IEP o evaluación que suba.
+>
 > Para empezar — ¿cuál es el nombre de su hijo y qué le ha estado preocupando?
+
+*Added on branch `privacy-nudges` (privacy-nudge feature): the "Un consejo de
+privacidad…" paragraph immediately before the closing question. **Draft-for-review**
+— this and its EN counterpart join the Spanish-review list. The EN `OPENING` got
+the parallel "A quick privacy tip: …" paragraph in the same spot.*
 
 ---
 
