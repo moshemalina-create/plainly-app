@@ -3276,6 +3276,8 @@ Asking for documents:
 - More directly when the answer genuinely depends on what's in the document — but keep the focus on THEIR question, not on your own limitations. Don't say "I can't tell you without seeing it." Say: "Whether that reading goal is actually appropriate depends on what the evaluation recommended — is that something you can share?"
 - Ask once. If they don't have it, work with what you've got and tell them what's less certain without it. Don't nag.
 
+PRIVACY WHEN INVITING UPLOADS: The first time in a conversation you invite or ask the parent to upload a document, add one brief, soft sentence letting them know they're welcome to black out or cover last names and other identifying details first — your review works fine without them. Keep it light and optional: a helpful aside, never a requirement or a warning. Say it once; do not repeat it on later upload invitations in the same conversation.
+
 When a parent attaches a document, do NOT immediately analyze it at them. Acknowledge that you've read it, maybe note one or two things that stand out, and then hand the floor back to the parent. For example: "Okay, I've read through it. Before I tell you what I notice — what's been bothering you about how things are going for [child]?" The document is there to inform the parent's concern, not to trigger a preemptive report. Let them tell you what matters; then use the document to go deeper on it.
 
 Once a document is in the conversation, its text appears in an UPLOADED DOCUMENTS section appended below. Treat that text as the real document the parent shared. Reference specifics naturally — service amounts, goal language, dates, classification, who signed what. Never invent anything that isn't actually there. If a document shows as truncated, tell the parent you've read most of it and ask them to point you to a specific section or page if you need a part you can't see. Documents can be any type; work out what each one is from its contents and use it accordingly.
@@ -3347,6 +3349,8 @@ When you offer, be specific and tailored — pick the 1-3 most relevant to their
 
 WHEN YOU OFFER AND THE PARENT ACCEPTS — hand off, don't draft
 When you trigger an output, the document is generated separately and appears in a panel directly below the conversation, where the parent can read it, fill in highlighted [PARENT TO ADD: …] blanks, download it as a PDF, or copy it. Do NOT write the document's text in your chat_reply. This means no full text, no partial drafts, no "here's roughly what I'm thinking" previews. The panel is the document. Your chat_reply is the hand-off.
+
+If you're generating a document that includes a name and you only have first names so far, reassure the parent briefly in your hand-off that the draft works fine with first names — it'll use them and clearly mark the spots where a full legal name goes, and they can add full names to the final version before filing. Say it once, lightly; don't make it a to-do.
 
 Don't ask for the kind of formal letterhead details that turn into bracketed placeholders — addresses, official names, identification numbers, district mailing addresses, things like that. The panel surfaces those as fill-in spots; you don't need to collect them in chat. This is about transcription, not substance: the case facts and the dates that carry legal weight — see "WHEN A FULL COMPLAINT IS ON THE TABLE" — you DO gather in conversation, because they're the content of the document, not letterhead.
 
@@ -3556,6 +3560,8 @@ FORMAT
 - Closing: "Sincerely," then parent's name. Email/phone underneath.
 
 If a required fact is missing from the inputs, use a clearly bracketed placeholder like [PARENT TO ADD: date of last CSE meeting]. Do NOT invent dates, names, or quotations.
+
+NAMES — the context may give you only a first name (e.g. child_first_name) with no full legal name. When that's the case, use the first name naturally in the body of the letter, and use a [PARENT TO ADD: full legal name] placeholder only where the full legal name is actually required — the letterhead/address block and the signature. Never invent or guess a last name.
 
 Return only the letter text. No commentary, no preamble.`;
 
@@ -4041,6 +4047,8 @@ OUTPUT
 Plain text formatted as a letter. NO Markdown or formatting syntax of any kind: no asterisks for bold (**like this**), no # headings, no dashes or asterisks as bullets — this document goes to a school district or hearing officer and any such characters render as unprofessional raw artifacts. Use ordinary line breaks and short paragraphs. When you need to separate distinct points or issues, use plain paragraph breaks or simple numbered points (1., 2., 3.) as a formal letter would — never Markdown emphasis as a header. End with signature block: parent name, address, phone, email, date.
 
 Don't include certificate of service unless asked. List evidence under "Documents I am prepared to provide" at the end if relevant. Don't predict outcomes. Don't include disclaimers. Don't invent dates, names, services, or quotes. Use [PARENT TO ADD: ...] placeholders for any required element you don't have.
+
+When you have only a first name for the parent or child (a first_name with no full legal name), use that first name naturally in the body, and use a [PARENT TO ADD: full legal name] placeholder only where the full legal name is required — the caption and the signature block. Never invent or guess a last name.
 
 Return only the letter text. No preamble, no commentary.`;
 
@@ -5939,6 +5947,17 @@ function TriageSection({ result, loading }) {
   );
 }
 
+// Shared muted caption near generated documents: reassures the parent that a
+// draft is fine with first names and full names get added before filing. Echoes
+// the "How is AI used?" FAQ and the chat opening privacy tip.
+function FirstNameDraftTip({ style }) {
+  return (
+    <p className="first-name-tip" style={{ fontSize: 13, color: "var(--ink-soft)", fontStyle: "italic", margin: "8px 0 0", ...style }}>
+      Tip: drafts work fine with first names — add full names when you prepare the final version to file.
+    </p>
+  );
+}
+
 function DraftReview({ draft, edited, onEditChange, checks, onCheckChange, onRegenerate, drafting, onSavePdf }) {
   const [editing, setEditing] = useState(false);
   if (drafting) {
@@ -5978,6 +5997,7 @@ function DraftReview({ draft, edited, onEditChange, checks, onCheckChange, onReg
         want to achieve. If the tone or approach sounds off to you, let me know and
         I can revise.
       </p>
+      <FirstNameDraftTip />
 
       <div className="filing-help">
         <strong>Once it's ready, here's how to send it in:</strong>{" "}
@@ -6069,7 +6089,7 @@ const FORMAL_FIELD_DEFS = {
 // full signature-block set). mode="letters" | "complaint" selects the field set,
 // the required subset, and the framing copy. Writes into the shared formalFields
 // store, so a name typed for a letter pre-populates the complaint and vice versa.
-function FormalFieldsForm({ values, onChange, onSubmit, onCancel, mode, neededFor, childFirstName }) {
+function FormalFieldsForm({ values, onChange, onSubmit, onSkip, onCancel, mode, neededFor, childFirstName }) {
   const set = (k, v) => onChange((p) => ({ ...p, [k]: v }));
 
   const fields = mode === "complaint"
@@ -6141,17 +6161,19 @@ function FormalFieldsForm({ values, onChange, onSubmit, onCancel, mode, neededFo
   const labelList = (neededFor || []).map((id) => OUTPUT_LIBRARY[id]?.label).filter(Boolean).join(", ");
   return (
     <div className="letter-fields-card">
-      <h4>One last thing — full legal names for the letterhead</h4>
+      <h4>Full legal names for the letterhead — optional</h4>
       <p className="help">
-        I have {childFirstName || "your child"}'s first name from our chat, but for letters that get sent to the district, I want to make sure I have full legal names — both yours and {childFirstName ? childFirstName + "'s" : "your child's"}. This is the only piece I'll need that wasn't covered above.
-      </p>
-      <p className="help" style={{ marginTop: -8 }}>
-        For: {labelList}.
+        If you'd like, give me full legal names — yours and {childFirstName ? childFirstName + "'s" : "your child's"} — for the letterhead of {labelList}. Or skip this: the draft will use first names, with clearly marked spots to add full names before you send.
       </p>
       {fields.map(renderField)}
-      <button className="btn btn-primary" onClick={onSubmit} disabled={!canSubmit}>
-        Generate the documents
-      </button>
+      <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 4 }}>
+        <button className="btn btn-primary" onClick={onSubmit} disabled={!canSubmit}>
+          Use these names
+        </button>
+        <button className="btn btn-ghost" onClick={onSkip || onSubmit}>
+          Skip — use first names for now
+        </button>
+      </div>
     </div>
   );
 }
@@ -6222,6 +6244,7 @@ function OutputCard({ id, def, content, loading, onRegenerate, onSavePdf }) {
                 const missing = extractPlaceholderLabels(currentText);
                 return (
                 <>
+                  <FirstNameDraftTip style={{ marginTop: 0, marginBottom: 12 }} />
                   {missing.length > 0 && !editing && (
                     <div
                       style={{
@@ -6625,13 +6648,13 @@ function IEPSection({
 // ============================================================================
 
 const OPENING =
-  "Hi. I'm here to help you make sense of what's going on with your child's special education — what their documents actually say, where the district may be falling short, and what you can do about it, whether that's pushing back, getting something in writing, or filing if it comes to that.\n\nNo form to fill out. Just tell me what's going on in your own words, and if you've got a document like the IEP, you can attach it any time and I'll take a look.\n\nTo start — what's your child's first name, and what's been worrying you?";
+  "Hi. I'm here to help you make sense of what's going on with your child's special education — what their documents actually say, where the district may be falling short, and what you can do about it, whether that's pushing back, getting something in writing, or filing if it comes to that.\n\nNo form to fill out. Just tell me what's going on in your own words, and if you've got a document like the IEP, you can attach it any time and I'll take a look.\n\nA quick privacy tip: you're welcome to use just first names — yours and your child's. Documents we draft can have full names added later, when you're ready to file.\n\nTo start — what's your child's first name, and what's been worrying you?";
 
 // Spanish opening (item 5). Stated up front — the legal drafts are prepared in
 // English (that's how districts process them) but explained in Spanish. Uses
 // NYSED terms of art ("queja de debido proceso", "aviso por escrito de 10 días").
 const OPENING_ES =
-  "Hola. Estoy aquí para ayudarle a entender lo que está pasando con la educación especial de su hijo — lo que realmente dicen sus documentos, dónde el distrito podría estar fallando, y qué puede hacer al respecto, ya sea reclamar, obtener algo por escrito, o presentar una queja si llega a eso.\n\nNo hay ningún formulario que llenar. Solo cuénteme qué está pasando con sus propias palabras, y si tiene un documento como el IEP, puede adjuntarlo en cualquier momento y le echaré un vistazo.\n\nUna nota: los documentos legales que preparemos — la queja de debido proceso, las cartas al distrito, el aviso por escrito de 10 días — los redactaré en inglés, porque así es como los distritos y el Departamento de Educación del Estado los procesan. Pero le explicaré todo sobre ellos en español, en cada paso.\n\nPara empezar — ¿cuál es el nombre de su hijo y qué le ha estado preocupando?";
+  "Hola. Estoy aquí para ayudarle a entender lo que está pasando con la educación especial de su hijo — lo que realmente dicen sus documentos, dónde el distrito podría estar fallando, y qué puede hacer al respecto, ya sea reclamar, obtener algo por escrito, o presentar una queja si llega a eso.\n\nNo hay ningún formulario que llenar. Solo cuénteme qué está pasando con sus propias palabras, y si tiene un documento como el IEP, puede adjuntarlo en cualquier momento y le echaré un vistazo.\n\nUna nota: los documentos legales que preparemos — la queja de debido proceso, las cartas al distrito, el aviso por escrito de 10 días — los redactaré en inglés, porque así es como los distritos y el Departamento de Educación del Estado los procesan. Pero le explicaré todo sobre ellos en español, en cada paso.\n\nUn consejo de privacidad: puede usar solo los nombres de pila — el suyo y el de su hijo. Los nombres completos se pueden agregar a los documentos más tarde, cuando esté listo para presentarlos.\n\nPara empezar — ¿cuál es el nombre de su hijo y qué le ha estado preocupando?";
 
 // The Spanish language directive appended to the chat's system prompt when the
 // site language is ES (item 5). Drives Spanish conversation; the drafted legal
@@ -7053,6 +7076,9 @@ function ChatTool() {
       today,
       parent_full_name: formalFields.parent_full_name || "[PARENT TO ADD: full name]",
       child_full_name: formalFields.child_full_name || "[PARENT TO ADD: child's full name]",
+      // First name from the chat intake, surfaced so a draft can use it naturally
+      // in the body even when no full legal name was provided (see LIGHTER_OUTPUT_BASE).
+      child_first_name: intake.student_first_name || "",
       captured_intake: intake,
       district_name: intake.district_name || "[PARENT TO ADD: district name]",
       chat_excerpt: messages
@@ -7761,7 +7787,8 @@ function ChatTool() {
         <p className="lede">
           Describe your situation in your own words. I'll help you make sense of
           it, flag anything time-sensitive right away, and put together letters or
-          documents when they'd help. Attach the IEP or any document any time.
+          documents when they'd help. Attach the IEP or any document any time — you're
+          welcome to black out last names first.
         </p>
 
         <div className="thread" ref={threadRef}>
@@ -7857,7 +7884,7 @@ function ChatTool() {
               onClick={() => attachRef.current?.click()}
               disabled={loading || attaching}
               aria-label="Attach a document"
-              title="Attach a PDF (IEP, evaluation, notice, anything)"
+              title="Attach a PDF (IEP, evaluation, notice, anything). You can black out last names first — it works fine without them."
               style={{ background: "transparent", color: "var(--ink-soft)" }}
             >
               {attaching ? (
@@ -7909,6 +7936,18 @@ function ChatTool() {
               values={formalFields}
               onChange={setFormalFields}
               onSubmit={() => setFormalFieldsCollected(true)}
+              onSkip={() => {
+                // Skipping: drop the first-name-only prefill (e.g. "Jacob ") so the
+                // draft shows a clearly-marked [PARENT TO ADD: full legal name] spot
+                // in the letterhead, while the body still uses the first name (passed
+                // as child_first_name). Keep anything the parent actually typed.
+                const fn = (intake.student_first_name || "").trim();
+                setFormalFields((f) => ({
+                  ...f,
+                  child_full_name: (f.child_full_name || "").trim() === fn ? "" : f.child_full_name,
+                }));
+                setFormalFieldsCollected(true);
+              }}
               neededFor={pending}
               childFirstName={intake.student_first_name}
             />
