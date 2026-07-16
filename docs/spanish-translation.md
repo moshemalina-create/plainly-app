@@ -39,6 +39,10 @@ Three things need your review here before any build:
   `/contact`, `/account`, `/login`, `/start` UI chrome) stay English regardless
   of the toggle this phase. The shared header/footer on those pages *do* follow
   the toggle — that's intentional and expected.
+  - *Post-merge note (branch `privacy-ai-copy-edits`):* the FAQ page gained two
+    new entries — "How is AI used on this site?" and "Can I just use an AI tool
+    like ChatGPT or Claude myself…". These are English-only like the rest of the
+    FAQ and **join the Phase-2 FAQ translation scope** when `/faq` is localized.
 - **Legal pages** (`#/terms`, `#/privacy`) stay English **permanently** by
   design. Their footer *link labels* translate; the linked pages do not.
 - **Generated legal documents stay English, always** — the due-process
